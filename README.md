@@ -132,4 +132,4 @@ Contributions to WhisperCat are welcome! 🎉
 
 ## Contact
 
-For questions, feedback, or support, open an **issue** on the [GitHub repository](https://github.com/yourusername/audiorecorder).  
+For questions, feedback, or support, open an **issue** on the [GitHub repository](https://github.com/ddxy/whispercat).  
