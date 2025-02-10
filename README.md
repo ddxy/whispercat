@@ -55,8 +55,8 @@ Here's what WhisperCat looks like in action:
 ## Future Ideas
 
 Here are some planned ideas and features for future releases:
-
-- **macOS Support**: While full macOS support is planned, an **experimental version** is already available. Check it out here: [Experimental macOS Build](https://github.com/ddxy/whispercat/actions/etc). Feedback is welcome!
+- **Faster Whisperer**: Add support for Faster Whisperer Server.
+- **macOS Support**: While full macOS support is planned, an **experimental version** is already available. Check it out here: [Experimental macOS Build](https://github.com/ddxy/whispercat/releases/tag/v1.0.0). Feedback is welcome!
 - **Microphone Selection Improvements**: Revamp the microphone selection process to make it more user-friendly and intuitive.
 - **Icon Fixes**: Refine and improve icons and UI graphics for better display on all platforms.
 - **Audio Format Options**: Allow users to choose the output audio format (e.g., WAV, MP3).
