@@ -14,6 +14,7 @@ import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 
 import java.awt.*;
+import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.*;
 import java.awt.image.BufferedImage;
@@ -80,6 +81,37 @@ public class AudioRecorderUI {
             }
         });
 
+        frame.setTransferHandler(new TransferHandler() {
+            @Override
+            public boolean canImport(TransferSupport support) {
+                // Accept file list flavor
+                return support.isDataFlavorSupported(DataFlavor.javaFileListFlavor);
+            }
+
+            @Override
+            public boolean importData(TransferSupport support) {
+                try {
+                    @SuppressWarnings("unchecked")
+                    java.util.List<File> fileList = (java.util.List<File>) support.getTransferable()
+                            .getTransferData(DataFlavor.javaFileListFlavor);
+                    if (!fileList.isEmpty()) {
+                        File droppedFile = fileList.get(0);
+                        String lowerName = droppedFile.getName().toLowerCase();
+                        if (!(lowerName.endsWith(".wav") || lowerName.endsWith(".mp3"))) {
+                            NotificationManager.getInstance().showNotification(frame, ToastNotification.Type.WARNING, "Only .wav and .mp3 files allowed.");
+                            return false;
+                        }
+                        // Call the unified stopRecording method with the dropped file.
+                        stopRecording(droppedFile);
+                        return true;
+                    }
+                } catch (Exception ex) {
+                    logger.error("Error importing dropped file", ex);
+                }
+                return false;
+            }
+        });
+
         createTrayIcon();
 
         JPanel centerPanel = new JPanel();
@@ -130,10 +162,16 @@ public class AudioRecorderUI {
         centerPanel.add(transcriptionPanel);
         centerPanel.add(Box.createVerticalStrut(10));
         centerPanel.add(copyButton);
+        JLabel dragDropLabel = new JLabel("Drag & drop an audio file here.");
+        dragDropLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
+        dragDropLabel.setForeground(Color.GRAY);
+        centerPanel.add(Box.createVerticalStrut(10));
+        centerPanel.add(dragDropLabel);
+        centerPanel.add(Box.createVerticalStrut(10));
         centerPanel.add(Box.createVerticalGlue());
 
         frame.add(centerPanel, BorderLayout.CENTER);
-        frame.setSize(500, 430);
+        frame.setSize(500, 450);
         frame.setLocationRelativeTo(null);
         frame.setJMenuBar(createMenuBar());
         frame.setVisible(true);
@@ -153,12 +191,11 @@ public class AudioRecorderUI {
             updateUIForRecordingStart();
         } else {
             stopRecording();
-            updateUIForRecordingStop();
         }
         updateTrayMenu();
     }
 
-    public void startRecording() {
+    private void startRecording() {
         try {
             isRecording = true;
             String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
@@ -175,7 +212,8 @@ public class AudioRecorderUI {
 
     private boolean isStoppingInProgress = false;
 
-    public void stopRecording() {
+    private void stopRecording() {
+        updateUIForRecordingStop();
         isStoppingInProgress = true;
         recordButton.setText("Converting. Please wait...");
         recordButton.setEnabled(false);
@@ -184,6 +222,13 @@ public class AudioRecorderUI {
             logger.info("Recording stopped");
             new AudioTranscriptionWorker(recorder.getOutputFile(), frame).execute();
         }
+    }
+
+    public void stopRecording(File audioFile) {
+        isStoppingInProgress = true;
+        recordButton.setText("Converting. Please wait...");
+        recordButton.setEnabled(false);
+        new AudioTranscriptionWorker(audioFile, frame).execute();
     }
 
     public void playClickSound() {
@@ -295,6 +340,26 @@ public class AudioRecorderUI {
         JMenuItem logsItem = new JMenuItem("Logs");
         logsItem.addActionListener(e -> openLogsWindow());
         menu.add(logsItem);
+
+        JMenuItem uploadFileItem = new JMenuItem("Upload File");
+        uploadFileItem.addActionListener(e -> {
+            // Open file chooser for audio file upload with a file filter for .wav and .mp3 files.
+            JFileChooser fileChooser = new JFileChooser();
+            fileChooser.setFileFilter(new javax.swing.filechooser.FileNameExtensionFilter("Audio Files (WAV, MP3)", "wav", "mp3"));
+            int returnVal = fileChooser.showOpenDialog(frame);
+            if (returnVal == JFileChooser.APPROVE_OPTION) {
+                File selectedFile = fileChooser.getSelectedFile();
+                // Check if file extension is ".wav" or ".mp3"
+                String lowerName = selectedFile.getName().toLowerCase();
+                if (!(lowerName.endsWith(".wav") || lowerName.endsWith(".mp3"))) {
+                    NotificationManager.getInstance().showNotification(frame, ToastNotification.Type.WARNING, "Only .wav and .mp3 files allowed.");
+                    return;
+                }
+                // Pass the selected file to the unified stopRecording method
+                stopRecording(selectedFile);
+            }
+        });
+        menu.add(uploadFileItem);
 
         return menuBar;
     }
