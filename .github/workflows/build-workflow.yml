@@ -1,0 +1,296 @@
+name: Build Workflow
+
+on:
+  workflow_call:
+
+jobs:
+  build:
+    name: Build with Maven
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Build with Maven
+        run: mvn clean package
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: target/Audiorecorder-1.0-SNAPSHOT-jar-with-dependencies.jar
+
+  build-appimage:
+    name: Build AppImage for Linux
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Build with Maven
+        run: mvn clean package
+
+      - name: Install libfuse2
+        run: sudo apt-get update && sudo apt-get install -y libfuse2
+
+
+      - name: Install AppImage Tool
+        run: |
+          wget https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+
+      - name: Create AppDir Structure
+        run: |
+          mkdir -p AppDir/usr/bin
+          mkdir -p AppDir/usr/share/icons/hicolor/256x256/apps
+          mkdir -p AppDir/usr/share/applications
+
+          # Create AppRun
+          cat << 'EOT' > AppDir/AppRun
+          #!/bin/bash
+          HERE="$(dirname "$(readlink -f "${0}")")"
+          exec java -jar "${HERE}/usr/bin/WhisperCat.jar"
+          EOT
+          chmod +x AppDir/AppRun
+
+          # Copy JAR file
+          cp target/Audiorecorder-1.0-SNAPSHOT-jar-with-dependencies.jar AppDir/usr/bin/WhisperCat.jar
+
+          # Copy Icon
+          cp whispercat.png AppDir/whispercat.png
+
+          # Create .desktop file
+          cat <<EOT > AppDir/WhisperCat.desktop
+          [Desktop Entry]
+          Type=Application
+          Name=WhisperCat
+          Exec=AppRun
+          Icon=whispercat
+          Comment=Ein Java-basierter Audio-Recorder
+          Categories=Utility;AudioVideo;Audio;Recorder;
+          EOT
+
+      - name: Build AppImage
+        run: |
+          export ARCH=x86_64
+          ./appimagetool-x86_64.AppImage AppDir WhisperCat.AppImage
+
+      - name: Upload AppImage Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WhisperCat.AppImage
+          path: WhisperCat.AppImage
+
+  build-deb:
+    name: Build and Package for Linux (.deb) without bundling JRE
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Build with Maven
+        run: mvn clean package
+
+      - name: Install dpkg-dev
+        run: sudo apt-get update && sudo apt-get install -y dpkg-dev
+
+      - name: Create DEB Package Structure
+        run: |
+          package_name="WhisperCat"
+          app_version="1.0.0"
+          mkdir -p deb_package/DEBIAN
+          mkdir -p deb_package/usr/bin
+          mkdir -p deb_package/usr/share/$package_name
+
+      - name: Create Control File
+        run: |
+          package_name="WhisperCat"
+          app_version="1.0.0"
+          echo "Package: $package_name
+          Priority: optional
+          Section: utils
+          Installed-Size: $(du -ks deb_package/usr/share/$package_name | cut -f1)
+          Maintainer: -
+          Architecture: amd64
+          Version: $app_version
+          Depends: default-jre | java11-runtime
+          Description: WhisperCat converts speech to text via whisper API." > deb_package/DEBIAN/control
+
+      - name: Copy JAR File
+        run: |
+          package_name="WhisperCat"
+          cp target/Audiorecorder-1.0-SNAPSHOT-jar-with-dependencies.jar deb_package/usr/share/$package_name/
+
+      - name: Copy Icon
+        run: |
+          mkdir -p deb_package/usr/share/icons/hicolor/256x256/apps
+          cp whispercat.png deb_package/usr/share/icons/hicolor/256x256/apps/whispercat.png
+
+      - name: Create .desktop File
+        run: |
+          mkdir -p deb_package/usr/share/applications
+          echo '[Desktop Entry]
+          Version=1.0
+          Type=Application
+          Name=WhisperCat
+          Comment=Java based audio recorder
+          Exec=WhisperCat
+          Icon=whispercat
+          Terminal=false
+          Categories=Utility;AudioVideo;Audio;Recorder;' > deb_package/usr/share/applications/whisperCat.desktop
+
+      - name: Set Permissions for Desktop Files
+        run: |
+          chmod 644 deb_package/usr/share/applications/whisperCat.desktop
+          chmod 644 deb_package/usr/share/icons/hicolor/256x256/apps/whispercat.png
+
+      - name: Create Executable Script
+        run: |
+          package_name="WhisperCat"
+          echo '#!/bin/bash
+          java -jar /usr/share/'"$package_name"'/Audiorecorder-1.0-SNAPSHOT-jar-with-dependencies.jar "$@"' > deb_package/usr/bin/$package_name
+          chmod +x deb_package/usr/bin/$package_name
+
+      - name: Set Permissions
+        run: chmod -R go-w deb_package
+
+      - name: Build DEB Package
+        run: dpkg-deb --build deb_package whispercat.deb
+
+      - name: Upload .deb Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: whispercat.deb
+          path: whispercat.deb
+
+  build-windows:
+    name: Build and Package for Windows using jpackage
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Verify Java Version for Build
+        run: java -version
+
+      - name: Build with Maven
+        run: mvn clean package
+
+      - name: Uninstall Previous Version if Exists
+        shell: powershell
+        run: |
+          Write-Output "Checking for previous installation of WhisperCat..."
+          # Suche in der Registry nach einem Eintrag, der den DisplayName "WhisperCat" hat.
+          $apps = Get-ItemProperty -Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*" -ErrorAction SilentlyContinue | Where-Object { $_.DisplayName -eq "WhisperCat" }
+          if ($apps) {
+            foreach ($app in $apps) {
+              $uninstallString = $app.UninstallString
+              if ($uninstallString) {
+                Write-Output "Found uninstall command: $uninstallString"
+                # Viele MSI-Deinstallationsbefehle benötigen den /qn-Parameter für eine stille Deinstallation.
+                # Falls der uninstall-String Anführungszeichen enthält, können diese entfernt oder beibehalten werden.
+                Write-Output "Running uninstall command..."
+                Start-Process -FilePath "cmd.exe" -ArgumentList "/c", "$uninstallString /qn" -Wait
+              }
+              else {
+                Write-Output "No uninstall command found for product: $($app.DisplayName)"
+              }
+            }
+          }
+          else {
+            Write-Output "No previous installation found."
+          }
+
+      - name: Create Application Image with jpackage
+        shell: powershell
+        run: |
+          # Parameter für jpackage definieren
+          $appVersion = '1.0.0' 
+          $packageName = 'WhisperCat'
+          $mainJar = 'target\Audiorecorder-1.0-SNAPSHOT-jar-with-dependencies.jar'
+          $mainClass = 'org.whispercat.AudioRecorderUI'
+          $iconPath = 'whispercat.ico'
+          $outputDir = 'jpackage_output'
+          $vendor = 'WhisperCat'
+
+          # Erstelle das Output-Verzeichnis, falls es noch nicht existiert
+          if (-Not (Test-Path -Path $outputDir)) {
+            New-Item -ItemType Directory -Path $outputDir | Out-Null
+          }
+
+          # Führe jpackage aus
+          & "${env:JAVA_HOME}\bin\jpackage.exe" `
+            --type exe `
+            --input target `
+            --name $packageName `
+            --main-jar $(Split-Path -Leaf $mainJar) `
+            --main-class $mainClass `
+            --icon $iconPath `
+            --app-version $appVersion `
+            --vendor $vendor `
+            --win-dir-chooser `
+            --win-menu `
+            --win-shortcut `
+            --copyright "© $vendor" `
+            --dest $outputDir
+
+      - name: Upload Installer Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WhisperCat-Installer
+          path: jpackage_output\*
+
+  build-macos:
+    name: Build macOS Installer (DMG)
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Build with Maven
+        run: mvn clean package
+
+      - name: Create macOS App Bundle and DMG
+        run: |
+          jpackage \
+            --type dmg \
+            --name WhisperCat \
+            --app-version 1.0.0 \
+            --icon whispercat.icns \
+            --input target \
+            --main-jar Audiorecorder-1.0-SNAPSHOT-jar-with-dependencies.jar \
+            --main-class org.whispercat.AudioRecorderUI
+
+      - name: Upload DMG Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WhisperCat.dmg
+          path: WhisperCat-1.0.0.dmg
