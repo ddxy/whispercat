@@ -171,7 +171,7 @@ public class AudioRecorderUI {
         centerPanel.add(Box.createVerticalGlue());
 
         frame.add(centerPanel, BorderLayout.CENTER);
-        frame.setSize(500, 430);
+        frame.setSize(500, 450);
         frame.setLocationRelativeTo(null);
         frame.setJMenuBar(createMenuBar());
         frame.setVisible(true);
