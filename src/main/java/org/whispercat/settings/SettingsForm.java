@@ -1,35 +1,52 @@
-package org.whispercat;
+package org.whispercat.settings;
 
 import com.github.kwhat.jnativehook.keyboard.NativeKeyEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.whispercat.ConfigManager;
+import org.whispercat.Notificationmanager;
+import org.whispercat.ToastNotification;
 
 import javax.sound.sampled.*;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
-import java.util.*;
 import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
-public class SettingsDialog extends JDialog {
-    private static final Logger logger = LogManager.getLogger(SettingsDialog.class);
+public class SettingsForm extends JPanel {
+    private static final Logger logger = LogManager.getLogger(SettingsForm.class);
     private final KeyCombinationTextField keyCombinationTextField;
     private final JButton clearKeybindButton;
     private final KeySequenceTextField keySequenceTextField;
     private final JButton clearKeySequenceButton;
     private final JButton saveButton;
-    private final JButton cancelButton;
     private final JTextField apiKeyField;
     private final JComboBox<String> microphoneComboBox;
     private final JComboBox<Integer> bitrateComboBox;
     private final ConfigManager configManager;
     private final JCheckBox stopSoundSwitch;
 
-    public SettingsDialog(JFrame parent, ConfigManager configManager) {
-        super(parent, "Settings", true);
+    private final JProgressBar volumeBar;
+    private final JButton stopTestButton;
+    private final JButton testMicrophoneButton;
+
+    private AudioFormat format;
+    private TargetDataLine line;
+    private TestWorker testWorker;
+
+    public SettingsForm(ConfigManager configManager) {
         this.configManager = configManager;
-        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
+
+        volumeBar = new JProgressBar(0, 100);
+        volumeBar.setStringPainted(true);
+        volumeBar.setVisible(false);
+
+        stopTestButton = new JButton("Stop Test");
+        stopTestButton.setVisible(false);
+        stopTestButton.addActionListener(e -> stopAudioTest());
+
         JPanel contentPanel = new JPanel(new GridBagLayout());
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
@@ -97,7 +114,7 @@ public class SettingsDialog extends JDialog {
         gbc.gridwidth = 1;
         gbc.weightx = 0;
         gbc.anchor = GridBagConstraints.EAST;
-        contentPanel.add(new JLabel("API Key:"), gbc);
+        contentPanel.add(new JLabel("OpenAI API Key:"), gbc);
 
         apiKeyField = new JTextField(20);
         gbc.gridx = 1;
@@ -108,6 +125,7 @@ public class SettingsDialog extends JDialog {
         contentPanel.add(apiKeyField, gbc);
 
         row++;
+
         gbc.gridx = 0;
         gbc.gridy = row;
         gbc.gridwidth = 1;
@@ -123,7 +141,11 @@ public class SettingsDialog extends JDialog {
         gbc.anchor = GridBagConstraints.WEST;
         contentPanel.add(microphoneComboBox, gbc);
 
-        JButton testMicrophoneButton = new JButton("Test");
+        microphoneComboBox.addActionListener(e -> {
+            stopAudioTest();
+        });
+
+        testMicrophoneButton = new JButton("Test");
         gbc.gridx = 3;
         gbc.gridy = row;
         gbc.gridwidth = 1;
@@ -133,12 +155,28 @@ public class SettingsDialog extends JDialog {
         testMicrophoneButton.addActionListener(e -> {
             String selectedMicrophone = (String) microphoneComboBox.getSelectedItem();
             if (selectedMicrophone != null && !selectedMicrophone.isEmpty()) {
-                MicrophoneTestDialog testDialog = new MicrophoneTestDialog(this, configManager, selectedMicrophone);
-                testDialog.setVisible(true);
+                startAudioTest(selectedMicrophone);
+                volumeBar.setVisible(true);
+                stopTestButton.setVisible(true);
             } else {
                 JOptionPane.showMessageDialog(this, "No Mic selected. Please select Mic.", "Error", JOptionPane.ERROR_MESSAGE);
             }
         });
+
+        row++;
+
+        gbc.gridx = 1;
+        gbc.gridy = row;
+        gbc.gridwidth = 2;
+        gbc.weightx = 1.0;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        contentPanel.add(volumeBar, gbc);
+
+        gbc.gridx = 3;
+        gbc.gridy = row;
+        gbc.gridwidth = 1;
+        gbc.weightx = 0;
+        contentPanel.add(stopTestButton, gbc);
 
         row++;
         gbc.gridx = 0;
@@ -174,13 +212,9 @@ public class SettingsDialog extends JDialog {
         contentPanel.add(stopSoundSwitch, gbc);
 
         saveButton = new JButton("Save");
-        cancelButton = new JButton("Cancel");
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        buttonPanel.add(cancelButton);
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         buttonPanel.add(saveButton);
         saveButton.addActionListener(this::saveSettings);
-        cancelButton.addActionListener(e -> dispose());
-        getRootPane().setDefaultButton(saveButton);
 
         row++;
         gbc.gridx = 0;
@@ -190,10 +224,146 @@ public class SettingsDialog extends JDialog {
         gbc.anchor = GridBagConstraints.EAST;
         contentPanel.add(buttonPanel, gbc);
 
-        getContentPane().add(contentPanel);
         loadSettings();
-        pack();
-        setLocationRelativeTo(parent);
+
+        javax.swing.GroupLayout layout = new javax.swing.GroupLayout(this);
+        this.setLayout(layout);
+
+        layout.setHorizontalGroup(
+                layout.createParallelGroup(javax.swing.GroupLayout.Alignment.CENTER)
+                        .addComponent(contentPanel)
+        );
+
+        layout.setVerticalGroup(
+                layout.createSequentialGroup()
+                        .addContainerGap()
+                        .addComponent(contentPanel)
+                        .addContainerGap(237, Short.MAX_VALUE)
+        );
+
+    }
+
+    private void startAudioTest(String microphoneName) {
+        testMicrophoneButton.setEnabled(false);
+        format = configManager.getAudioFormat();
+        try {
+            Mixer.Info mixerInfo = getMixerInfoByName(microphoneName);
+            if (mixerInfo == null) {
+                Notificationmanager.getInstance().showNotification(ToastNotification.Type.ERROR,
+                        "Microphone not found.");
+                return;
+            }
+            Mixer mixer = AudioSystem.getMixer(mixerInfo);
+            DataLine.Info dataLineInfo = new DataLine.Info(TargetDataLine.class, format);
+            if (!AudioSystem.isLineSupported(dataLineInfo)) {
+                Notificationmanager.getInstance().showNotification(ToastNotification.Type.ERROR,
+                        "Audio Line not supported. Please select another device.");
+                return;
+            }
+            line = (TargetDataLine) mixer.getLine(dataLineInfo);
+            int maxAttempts = 3;
+            int attempts = 0;
+            boolean opened = false;
+
+            while (attempts < maxAttempts && !opened) {
+                try {
+                    line.open(format);
+                    opened = true; // erfolgreich geöffnet
+                } catch (LineUnavailableException ex) {
+                    attempts++;
+                    if (attempts < maxAttempts) {
+                        try {
+                            Thread.sleep(2000); // 500 ms warten, bevor der nächste Versuch gestartet wird
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            logger.error("Interrupted while waiting to retry opening microphone line", ie);
+                            return;
+                        }
+                    } else {
+                        logger.error("Mic Line not available after " + maxAttempts + " attempts.", ex);
+                        Notificationmanager.getInstance().showNotification(ToastNotification.Type.ERROR,
+                                "Please try again selecting this mic.");
+                        return;
+                    }
+                }
+            }
+
+            line.start();
+
+            testWorker = new TestWorker();
+            testWorker.execute();
+        } catch (LineUnavailableException ex) {
+            logger.error("Mic Line is not available. Please select another device.", ex);
+            Notificationmanager.getInstance().showNotification(ToastNotification.Type.ERROR,
+                    "Mic Line is not available. Please select another device.");
+        }
+    }
+
+    /**
+     * Beendet den Audio-Test und blendet die Testkomponenten aus.
+     */
+    public void stopAudioTest() {
+        testMicrophoneButton.setEnabled(true);
+        if (testWorker != null && !testWorker.isDone()) {
+            testWorker.cancel(true);
+        }
+        if (line != null) {
+            line.stop();
+            line.close();
+            line = null;
+        }
+        volumeBar.setVisible(false);
+        stopTestButton.setVisible(false);
+    }
+
+    private Mixer.Info getMixerInfoByName(String name) {
+        Mixer.Info[] mixers = AudioSystem.getMixerInfo();
+        for (Mixer.Info mixer : mixers) {
+            if (name.startsWith(mixer.getName())) {
+                return mixer;
+            }
+        }
+        return null;
+    }
+
+    private class TestWorker extends SwingWorker<Void, Integer> {
+        @Override
+        protected Void doInBackground() {
+            byte[] buffer = new byte[1024];
+            while (!isCancelled()) {
+                int bytesRead = line.read(buffer, 0, buffer.length);
+                if (bytesRead > 0) {
+                    double rms = calculateRMS(buffer, bytesRead);
+                    int volume = (int) (rms * 100);
+                    publish(volume);
+                }
+            }
+            return null;
+        }
+
+        @Override
+        protected void process(List<Integer> chunks) {
+            int latestVolume = chunks.get(chunks.size() - 1);
+            volumeBar.setValue(latestVolume);
+            volumeBar.setString(latestVolume + " %");
+        }
+
+        @Override
+        protected void done() {
+            volumeBar.setValue(0);
+        }
+
+        private double calculateRMS(byte[] audioData, int bytesRead) {
+            long sum = 0;
+            for (int i = 0; i < bytesRead; i += 2) {
+                if (i + 1 < bytesRead) {
+                    int sample = (audioData[i + 1] << 8) | (audioData[i] & 0xFF);
+                    sum += (long) sample * sample;
+                }
+            }
+            double rms = Math.sqrt(sum / (bytesRead / 2));
+            return Math.min(rms / 32768.0, 1.0);
+        }
     }
 
     public static String formatKeyCombination(String keyCombination) {
@@ -238,7 +408,7 @@ public class SettingsDialog extends JDialog {
                     logger.info("Mixer do not support this format: " + mixerInfo.getName());
                     return false;
                 })
-                .map(Mixer.Info::getName)
+                .map( i -> i.getName() + " Description: " + i.getDescription())
                 .toArray(String[]::new);
     }
 
@@ -275,6 +445,7 @@ public class SettingsDialog extends JDialog {
         String selectedMicrophone = configManager.getProperty("selectedMicrophone");
         microphoneComboBox.setSelectedItem(selectedMicrophone);
 
+
         int bitrate = configManager.getAudioBitrate();
         bitrateComboBox.setSelectedItem(bitrate);
 
@@ -305,9 +476,10 @@ public class SettingsDialog extends JDialog {
         configManager.setProperty("stopSound", String.valueOf(isStopSoundEnabled));
 
         configManager.saveConfig();
+        Notificationmanager.getInstance().showNotification(ToastNotification.Type.SUCCESS,
+                "Settings saved.");
         logger.info("Settings saved: Key shortcuts - {}, Key sequence - {}, API Key - [REDACTED], Microphone - {}",
                 keyCombinationString, keySequenceString, microphoneComboBox.getSelectedItem());
-        dispose();
     }
 
     public KeyCombinationTextField getKeybindTextField() {

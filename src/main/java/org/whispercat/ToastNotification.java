@@ -26,7 +26,7 @@ public class ToastNotification extends JDialog {
         setOpacity(opacity);
         pack();
 
-        if (type == Type.ERROR) {
+        if (type == Type.ERROR || type == Type.WARNING) {
             bringParentToFront(parent);
         }
     }
@@ -67,6 +67,13 @@ public class ToastNotification extends JDialog {
         messageArea.setFont(new Font(UIManager.getFont("Label.font").getName(), Font.PLAIN, 15));
         messageArea.setBorder(null);
 
+        messageArea.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                dispose();
+            }
+        });
+
         gbc.gridx = 1;
         gbc.weightx = 1;
         gbc.fill = GridBagConstraints.BOTH;
@@ -88,9 +95,8 @@ public class ToastNotification extends JDialog {
         if (parent != null) {
             if (parent instanceof Frame) {
                 Frame frame = (Frame) parent;
-                if (frame.getState() == Frame.ICONIFIED) {
                     frame.setState(Frame.NORMAL);
-                }
+                    frame.setVisible(true);
             }
             parent.toFront();
             parent.requestFocus();
@@ -127,20 +133,27 @@ public class ToastNotification extends JDialog {
             }
             opacity = progress;
             setOpacity(opacity);
-        } else if (!fadingOut) {
-            if ((currentTime - animationStartTime) >= displayTime) {
-                fadingOut = true;
-                animationStartTime = currentTime;
-            }
         } else {
-            float progress = (currentTime - animationStartTime) / (float) fadeOutDuration;
-            if (progress >= 1f) {
-                opacity = 0f;
-                setOpacity(opacity);
-                dispose();
+            // For ERROR and WARNING types, do not auto fade out; keep the notification visible.
+            if (type == Type.ERROR || type == Type.WARNING) {
+                // Do nothing so that the notification remains visible.
             } else {
-                opacity = 1f - progress;
-                setOpacity(opacity);
+                if (!fadingOut) {
+                    if ((currentTime - animationStartTime) >= displayTime) {
+                        fadingOut = true;
+                        animationStartTime = currentTime;
+                    }
+                } else {
+                    float progress = (currentTime - animationStartTime) / (float) fadeOutDuration;
+                    if (progress >= 1f) {
+                        opacity = 0f;
+                        setOpacity(opacity);
+                        dispose();
+                    } else {
+                        opacity = 1f - progress;
+                        setOpacity(opacity);
+                    }
+                }
             }
         }
     }
@@ -148,7 +161,7 @@ public class ToastNotification extends JDialog {
     @Override
     public void dispose() {
         super.dispose();
-        NotificationManager.getInstance().removeNotification(this);
+        Notificationmanager.getInstance().removeNotification(this);
     }
 
     public enum Type {

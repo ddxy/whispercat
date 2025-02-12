@@ -1,7 +1,10 @@
-package org.whispercat;
+package org.whispercat.recording;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.whispercat.ConfigManager;
+import org.whispercat.Notificationmanager;
+import org.whispercat.ToastNotification;
 
 import javax.sound.sampled.*;
 import java.io.File;
@@ -29,6 +32,7 @@ public class AudioRecorder {
             Mixer mixer = AudioSystem.getMixer(selectedMixerInfo);
             if (!mixer.isLineSupported(info)) {
                 logger.warn("Line not supported for selected mixer");
+                Notificationmanager.getInstance().showNotification(ToastNotification.Type.WARNING, "Microphone not supported. This can happen if there were too many recordings in a short time. Please restart the application.");
                 return;
             }
 
@@ -48,6 +52,7 @@ public class AudioRecorder {
             logger.info("Stopping Line.");
             line.stop();
             line.close();
+            line = null;
             logger.info("Line closed.");
         }
     }
@@ -55,7 +60,7 @@ public class AudioRecorder {
     private Mixer.Info getMixerInfoByName(String name) {
         Mixer.Info[] mixers = AudioSystem.getMixerInfo();
         for (Mixer.Info mixer : mixers) {
-            if (mixer.getName().equals(name)) {
+            if (name.startsWith(mixer.getName())) {
                 return mixer;
             }
         }

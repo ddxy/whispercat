@@ -1,11 +1,20 @@
 package org.whispercat;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.whispercat.postprocessing.PostProcessingData;
 
 import javax.sound.sampled.AudioFormat;
 import java.io.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Properties;
+import java.util.stream.Collectors;
 
 public class ConfigManager {
     private static final Logger logger = LogManager.getLogger(ConfigManager.class);
@@ -119,5 +128,126 @@ public class ConfigManager {
 
     public boolean isStopSoundEnabled() {
         return Boolean.parseBoolean(properties.getProperty("stopSound", "true"));
+    }
+
+
+    public void savePostProcessingData(PostProcessingData data) {
+        Gson gson = new Gson();
+        String json = gson.toJson(data);
+        JsonArray array;
+        String existing = properties.getProperty("postProcessingData", "");
+        if (!existing.trim().isEmpty()) {
+            try {
+                array = JsonParser.parseString(existing).getAsJsonArray();
+            } catch (Exception e) {
+                logger.error("Existing postProcessingData is not a valid JSON array, creating a new one", e);
+                array = new JsonArray();
+            }
+        } else {
+            array = new JsonArray();
+        }
+
+        // Parse the incoming JSON and extract its uuid
+        JsonElement newElement;
+        try {
+            newElement = JsonParser.parseString(json);
+        } catch (Exception e) {
+            logger.error("Failed to parse provided JSON: " + json, e);
+            return;
+        }
+
+        String newUuid;
+        try {
+            newUuid = newElement.getAsJsonObject().get("uuid").getAsString();
+        } catch (Exception e) {
+            logger.error("Provided JSON does not contain a valid 'uuid' field: " + json, e);
+            return;
+        }
+
+        boolean replaced = false;
+        // Iterate over the array to check if an element with the same uuid exists.
+        for (int i = 0; i < array.size(); i++) {
+            try {
+                JsonElement element = array.get(i);
+                String existingUuid = element.getAsJsonObject().get("uuid").getAsString();
+                if (newUuid.equals(existingUuid)) {
+                    // Replace the element with the new one.
+                    array.set(i, newElement);
+                    replaced = true;
+                    break;
+                }
+            } catch (Exception e) {
+                logger.error("Error while processing existing JSON element", e);
+            }
+        }
+
+        // If not replaced then add the new element.
+        if (!replaced) {
+            array.add(newElement);
+        }
+
+        // Save the updated JSON array to properties and call saveConfig()
+        properties.setProperty("postProcessingData", gson.toJson(array));
+        saveConfig();
+    }
+
+    /**
+     * Returns the list of post processing data (as JSON element strings) from the configuration.
+     *
+     * @return List&lt;String&gt; containing each JSON element as a string; empty list if none exists.
+     */
+    public List<PostProcessingData> getPostProcessingDataList() {
+        Gson gson = new Gson();
+        String existing = properties.getProperty("postProcessingData", "[]");
+        if (!existing.trim().isEmpty()) {
+            try {
+                PostProcessingData[] dataArray = gson.fromJson(existing, PostProcessingData[].class);
+                return Arrays.asList(dataArray);
+            } catch (Exception e) {
+                logger.error("Existing postProcessingData is not a valid JSON array", e);
+                Notificationmanager.getInstance().showNotification(ToastNotification.Type.ERROR, "Failed to load post-processing data");
+            }
+        }
+        ;
+        return Collections.emptyList();
+    }
+
+    public void deletePostProcessingData(String uuid) {
+        String existing = properties.getProperty("postProcessingData", "[]");
+        if (!existing.trim().isEmpty()) {
+            Gson gson = new Gson();
+            PostProcessingData[] dataArray = gson.fromJson(existing, PostProcessingData[].class);
+            List<PostProcessingData> collect = Arrays.asList(dataArray).stream().filter(data -> !data.uuid.equals(uuid)).collect(Collectors.toList());
+            String json = gson.toJson(collect);
+            properties.setProperty("postProcessingData", json);
+        }
+    }
+
+
+    public void setPostProcessingOnStartup(boolean b) {
+        properties.setProperty("postProcessingOnStartup", String.valueOf(b));
+        saveConfig();
+    }
+
+    public boolean isPostProcessingOnStartup() {
+        return Boolean.parseBoolean(properties.getProperty("postProcessingOnStartup", "false"));
+    }
+
+    public String getLastUsedPostProcessingUUID() {
+        return properties.getProperty("lastUsedPostProcessingUUID", "");
+    }
+
+    public void setLastUsedPostProcessingUUID(String uuid) {
+        properties.setProperty("lastUsedPostProcessingUUID", uuid);
+        saveConfig();
+    }
+
+    public boolean isAutoPasteEnabled() {
+        return Boolean.parseBoolean(properties.getProperty("autoPaste", "true"));
+    }
+
+    public void setAutoPasteEnabled(boolean selected) {
+        properties.setProperty("autoPaste", String.valueOf(selected));
+        saveConfig();
     }
 }
