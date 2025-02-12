@@ -5,6 +5,7 @@ import com.github.kwhat.jnativehook.keyboard.NativeKeyEvent;
 import com.github.kwhat.jnativehook.keyboard.NativeKeyListener;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.whispercat.form.MainForm;
 import org.whispercat.form.other.FormDashboard;
 
 import java.text.Normalizer;
@@ -13,7 +14,7 @@ import java.util.Set;
 
 public class GlobalHotkeyListener2 implements NativeKeyListener {
     private static final Logger logger = LogManager.getLogger(GlobalHotkeyListener2.class);
-    private final FormDashboard ui;
+    private final MainForm ui;
     private final Set<Integer> pressedKeys = new HashSet<>();
     private String[] hotKeyCombination;
     private String[] hotKeySequence;
@@ -24,7 +25,7 @@ public class GlobalHotkeyListener2 implements NativeKeyListener {
     private boolean optionsDialogOpen = false;
     private boolean combinationActive = false;
 
-    public GlobalHotkeyListener2(FormDashboard ui, String initialKeyCombination, String initialKeySequence) {
+    public GlobalHotkeyListener2(MainForm ui, String initialKeyCombination, String initialKeySequence) {
         this.ui = ui;
         updateKeyCombination(initialKeyCombination);
         updateKeySequence(initialKeySequence);
@@ -117,7 +118,7 @@ public class GlobalHotkeyListener2 implements NativeKeyListener {
             if (!combinationActive) {
                 combinationActive = true;
                 logger.info("Key combination pressed, toggling recording");
-                ui.toggleRecording();
+                ui.formDashboard.toggleRecording();
                 pressedKeys.clear();
                 sequenceIndex = 0;
                 sequenceStartTime = 0;
@@ -141,7 +142,7 @@ public class GlobalHotkeyListener2 implements NativeKeyListener {
                     if (sequenceIndex == hotKeySequence.length) {
                         if (currentTime - sequenceStartTime <= 1000) {
                             logger.info("Key sequence completed, toggling recording");
-                            ui.toggleRecording();
+                            ui.formDashboard.toggleRecording();
                         } else {
                             logger.debug("Key sequence completed, but time limit was reached. Current time limit: 1000ms");
                         }

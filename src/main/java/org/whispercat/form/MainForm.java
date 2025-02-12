@@ -4,22 +4,32 @@ import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
 import com.formdev.flatlaf.util.UIScale;
 import org.whispercat.Application;
+import org.whispercat.ConfigManager;
+import org.whispercat.GlobalHotkeyListener2;
+import org.whispercat.WhisperClient;
 import org.whispercat.form.other.FormDashboard;
-import org.whispercat.form.other.FormInbox;
-import org.whispercat.form.other.FormRead;
+import org.whispercat.form.other.LogsForm;
+import org.whispercat.form.other.SettingsForm;
 import org.whispercat.menu.Menu;
 import org.whispercat.menu.MenuAction;
-
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 
-/**
- *
- * @author Raven
- */
+
 public class MainForm extends JLayeredPane {
+
+    private  WhisperClient whisperClient;
+    private  GlobalHotkeyListener2 globalHotkeyListener;
+    private  ConfigManager configManager;
+    public FormDashboard formDashboard;
+    public SettingsForm settingsForm;
+    private static final org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(MainForm.class);
 
     public MainForm() {
         init();
@@ -44,6 +54,14 @@ public class MainForm extends JLayeredPane {
         add(menuButton);
         add(menu);
         add(panelBody);
+
+        configManager = new ConfigManager();
+        extractNativeLibraries();
+        String hotkey = configManager.getKeyCombination();
+        whisperClient = new WhisperClient(configManager);
+        globalHotkeyListener = new GlobalHotkeyListener2(this, hotkey, configManager.getKeySequence());
+        formDashboard = new FormDashboard(configManager, whisperClient, globalHotkeyListener);
+        settingsForm = new SettingsForm(configManager);
     }
 
     @Override
@@ -57,19 +75,20 @@ public class MainForm extends JLayeredPane {
             menuButton = new JButton();
         }
         String icon = (getComponentOrientation().isLeftToRight()) ? "menu_left.svg" : "menu_right.svg";
-        menuButton.setIcon(new FlatSVGIcon("raven/icon/svg/" + icon, 0.8f));
+        menuButton.setIcon(new FlatSVGIcon("icon/svg/" + icon, 0.8f));
     }
 
     private void initMenuEvent() {
         menu.addMenuEvent((int index, int subIndex, MenuAction action) -> {
-            // Application.mainForm.showForm(new DefaultForm("Form : " + index + " " + subIndex));
+            globalHotkeyListener.setOptionsDialogOpen(false, null, null);
             if (index == 0) {
-                Application.showForm(new FormDashboard());
+                Application.showForm(formDashboard);
             } else if (index == 1) {
                 if (subIndex == 1) {
-                    Application.showForm(new FormInbox());
+                    globalHotkeyListener.setOptionsDialogOpen(true, settingsForm.getKeybindTextField(), settingsForm.getKeySequenceTextField());
+                    Application.showForm(settingsForm);
                 } else if (subIndex == 2) {
-                    Application.showForm(new FormRead());
+                    Application.showForm(new LogsForm());
                 } else {
                     action.cancel();
                 }
@@ -87,7 +106,7 @@ public class MainForm extends JLayeredPane {
         } else {
             icon = (full) ? "menu_right.svg" : "menu_left.svg";
         }
-        menuButton.setIcon(new FlatSVGIcon("raven/icon/svg/" + icon, 0.8f));
+        menuButton.setIcon(new FlatSVGIcon("icon/svg/" + icon, 0.8f));
         menu.setMenuFull(full);
         revalidate();
     }
@@ -162,6 +181,37 @@ public class MainForm extends JLayeredPane {
                 int bodyx = ltr ? (x + menuWidth + gap) : x;
                 int bodyy = y;
                 panelBody.setBounds(bodyx, bodyy, bodyWidth, bodyHeight);
+            }
+        }
+    }
+
+    private void extractNativeLibraries() {
+        String[] platforms = {"windows", "linux", "macos"};
+        String[] architectures = {"x86", "x86_64"};
+        String libName = "JNativeHook";
+        String baseDir = configManager.getConfigDirectory();
+        for (String platform : platforms) {
+            for (String arch : architectures) {
+                String libFileName = System.mapLibraryName(libName);
+                if (platform.equals("macos")) {
+                    libFileName = libFileName.replace(".jnilib", ".dylib");
+                }
+                String pathInJar = "/native/" + platform + "/" + arch + "/" + libFileName;
+                String outputPath = baseDir + "/" + platform + "/" + arch + "/" + libFileName;
+                File outputFile = new File(outputPath);
+                if (!outputFile.exists()) {
+                    outputFile.getParentFile().mkdirs();
+                    try (InputStream is = getClass().getResourceAsStream(pathInJar);
+                         OutputStream os = new FileOutputStream(outputFile)) {
+                        byte[] buffer = new byte[8192];
+                        int bytesRead;
+                        while ((bytesRead = is.read(buffer)) != -1) {
+                            os.write(buffer, 0, bytesRead);
+                        }
+                    } catch (Exception e) {
+                        logger.error("Error extracting native libraries", e);
+                    }
+                }
             }
         }
     }

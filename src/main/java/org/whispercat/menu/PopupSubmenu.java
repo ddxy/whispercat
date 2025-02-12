@@ -20,10 +20,6 @@ import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.SwingUtilities;
 
-/**
- *
- * @author Raven
- */
 public class PopupSubmenu extends JPanel {
 
     private final Menu menu;

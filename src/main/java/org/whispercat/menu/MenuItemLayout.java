@@ -8,10 +8,6 @@ import java.awt.Insets;
 import java.awt.LayoutManager;
 import javax.swing.JLabel;
 
-/**
- *
- * @author Raven
- */
 public class MenuItemLayout implements LayoutManager {
 
     private final Menu menu;
