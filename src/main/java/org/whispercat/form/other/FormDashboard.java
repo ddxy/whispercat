@@ -186,13 +186,16 @@ public class FormDashboard extends javax.swing.JPanel {
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(this);
         this.setLayout(layout);
 
+        layout.setHorizontalGroup(
+                layout.createParallelGroup(javax.swing.GroupLayout.Alignment.CENTER)
+                        .addComponent(centerPanel)
+        );
+
         layout.setVerticalGroup(
-                layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
-                        .addGroup(layout.createSequentialGroup()
-                                .addContainerGap()
-                                .addGap(173, 173, 173)
-                                .addComponent(centerPanel)
-                                .addContainerGap(237, Short.MAX_VALUE))
+                layout.createSequentialGroup()
+                        .addContainerGap()
+                        .addComponent(centerPanel)
+                        .addContainerGap(237, Short.MAX_VALUE)
         );
 
     }
