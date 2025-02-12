@@ -30,6 +30,15 @@
             <version>2.137</version>
         </dependency>
 
+        <!-- https://mvnrepository.com/artifact/com.github.weisj/jsvg -->
+        <dependency>
+            <groupId>com.github.weisj</groupId>
+            <artifactId>jsvg</artifactId>
+            <version>1.7.0</version>
+            <scope>runtime</scope>
+        </dependency>
+
+
 
         <!-- https://mvnrepository.com/artifact/com.miglayout/miglayout-swing -->
         <dependency>

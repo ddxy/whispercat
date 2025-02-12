@@ -28,18 +28,8 @@ public class Menu extends JPanel {
     private final String menuItems[][] = {
         {"~MAIN~"},
         {"Dashboard"},
-        {"~WEB APP~"},
-        {"Email", "Inbox", "Read", "Compost"},
-        {"Chat"},
-        {"Calendar"},
-        {"~COMPONENT~"},
-        {"Advanced UI", "Cropper", "Owl Carousel", "Sweet Alert"},
-        {"Forms", "Basic Elements", "Advanced Elements", "Editors", "Wizard"},
-        {"~OTHER~"},
-        {"Charts", "Apex", "Flot", "Peity", "Sparkline"},
-        {"Icons", "Feather Icons", "Flag Icons", "Mdi Icons"},
-        {"Special Pages", "Blank page", "Faq", "Invoice", "Profile", "Pricing", "Timeline"},
-        {"Logout"}
+        {"Settings", "Options", "Logs", "Compost"},
+
     };
 
     public boolean isMenuFull() {
@@ -66,7 +56,7 @@ public class Menu extends JPanel {
 
     private final List<MenuEvent> events = new ArrayList<>();
     private boolean menuFull = true;
-    private final String headerName = "Raven Channel";
+    private final String headerName = "WhisperCat";
 
     protected final boolean hideMenuTitleOnMinimum = true;
     protected final int menuTitleLeftInset = 5;
@@ -86,7 +76,7 @@ public class Menu extends JPanel {
                 + "background:$Menu.background;"
                 + "arc:10");
         header = new JLabel(headerName);
-//        header.setIcon(new ImageIcon(Menu.class.getResource("whispercat.png")));
+        header.setIcon(new ImageIcon(getClass().getResource("/logo.png")));
         header.putClientProperty(FlatClientProperties.STYLE, ""
                 + "font:$Menu.header.font;"
                 + "foreground:$Menu.foreground");

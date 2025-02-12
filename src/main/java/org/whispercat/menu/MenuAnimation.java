@@ -3,10 +3,6 @@ package org.whispercat.menu;
 import com.formdev.flatlaf.util.Animator;
 import java.util.HashMap;
 
-/**
- *
- * @author Raven
- */
 public class MenuAnimation {
 
     private static final HashMap<MenuItem, Animator> hash = new HashMap<>();

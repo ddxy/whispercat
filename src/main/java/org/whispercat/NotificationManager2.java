@@ -5,21 +5,21 @@ import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
 
-public class NotificationManager {
+public class NotificationManager2 {
     private static final int MAX_NOTIFICATIONS = 5;
     private static final int NOTIFICATION_SPACING = 10;
-    private static NotificationManager instance;
-    private final List<ToastNotification> notifications = new ArrayList<>();
+    private static NotificationManager2 instance;
+    private final List<ToastNotification2> notifications = new ArrayList<>();
     private final Timer animationTimer;
     private static Window parent;
-    private NotificationManager() {
+    private NotificationManager2() {
         animationTimer = new Timer(30, e -> updateAnimations());
         animationTimer.start();
     }
 
-    public static synchronized NotificationManager getInstance() {
+    public static synchronized NotificationManager2 getInstance() {
         if (instance == null) {
-            instance = new NotificationManager();
+            instance = new NotificationManager2();
         }
         return instance;
     }
@@ -28,19 +28,19 @@ public class NotificationManager {
         parent = application;
     }
 
-    public synchronized void showNotification(Window parent, ToastNotification.Type type, String message) {
+    public synchronized void showNotification(ToastNotification2.Type type, String message) {
         if (notifications.size() >= MAX_NOTIFICATIONS) {
-            ToastNotification oldestNotification = notifications.remove(0);
+            ToastNotification2 oldestNotification = notifications.remove(0);
             oldestNotification.dispose();
         }
 
-        ToastNotification notification = new ToastNotification(parent, type, message);
+        ToastNotification2 notification = new ToastNotification2(parent, type, message);
         notifications.add(notification);
 
         positionNotification(notification);
     }
 
-    private void positionNotification(ToastNotification notification) {
+    private void positionNotification(ToastNotification2 notification) {
         Window owner = notification.getOwner();
         int x = owner.getX() + owner.getWidth() - notification.getWidth() - 20;
         int yOffset = 40;
@@ -54,15 +54,15 @@ public class NotificationManager {
         notification.showToast();
     }
 
-    public synchronized void removeNotification(ToastNotification notification) {
+    public synchronized void removeNotification(ToastNotification2 notification) {
         notifications.remove(notification);
         updateNotificationPositions();
     }
 
     private void updateAnimations() {
         synchronized (this) {
-            List<ToastNotification> notificationsCopy = new ArrayList<>(notifications);
-            for (ToastNotification notification : notificationsCopy) {
+            List<ToastNotification2> notificationsCopy = new ArrayList<>(notifications);
+            for (ToastNotification2 notification : notificationsCopy) {
                 notification.updateAnimation();
             }
         }
@@ -71,7 +71,7 @@ public class NotificationManager {
     private void updateNotificationPositions() {
         int yOffset = 40;
         for (int i = notifications.size() - 1; i >= 0; i--) {
-            ToastNotification notification = notifications.get(i);
+            ToastNotification2 notification = notifications.get(i);
             Window owner = notification.getOwner();
             int x = owner.getX() + owner.getWidth() - notification.getWidth() - 20;
             int targetY = owner.getY() + owner.getHeight() - notification.getHeight() - yOffset;
@@ -84,7 +84,7 @@ public class NotificationManager {
     public synchronized void updateAllNotifications() {
         int yOffset = 40;
         for (int i = notifications.size() - 1; i >= 0; i--) {
-            ToastNotification notification = notifications.get(i);
+            ToastNotification2 notification = notifications.get(i);
             Window owner = notification.getOwner();
 
             int x = owner.getX() + owner.getWidth() - notification.getWidth() - 20;
