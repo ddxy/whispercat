@@ -1,38 +1,41 @@
-package org.whispercat;
+package org.whispercat.form.other;
 
+import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
 import com.formdev.flatlaf.util.UIScale;
 import dorkbox.systemTray.MenuItem;
 import dorkbox.systemTray.Separator;
 import dorkbox.systemTray.SystemTray;
+import org.whispercat.*;
 
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
 import javax.sound.sampled.Clip;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
-
 import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.*;
-import java.awt.image.BufferedImage;
 import java.io.*;
 import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.stream.Collectors;
 
-public class AudioRecorderUI {
+/**
+ *
+ * @author Raven
+ */
+public class FormDashboard extends javax.swing.JPanel {
 
-    private static final org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(AudioRecorderUI.class);
 
     private final JFrame frame;
     private final JButton recordButton;
     private final int baseIconSize = 200;
     private final WhisperClient whisperClient;
-    private final GlobalHotkeyListener globalHotkeyListener;
+    private final GlobalHotkeyListener2 globalHotkeyListener;
     private final ConfigManager configManager;
     private boolean isRecording = false;
     private AudioRecorder recorder;
@@ -40,15 +43,17 @@ public class AudioRecorderUI {
     private final JLabel recordingLabel;
     private JButton copyButton;
 
+    private static final org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(FormDashboard.class);
+
     private SystemTray systemTray;
     private MenuItem recordToggleMenuItem;
 
-    public AudioRecorderUI() {
+    public FormDashboard() {
         configManager = new ConfigManager();
         extractNativeLibraries();
         String hotkey = configManager.getKeyCombination();
         whisperClient = new WhisperClient(configManager);
-        globalHotkeyListener = new GlobalHotkeyListener(this, hotkey, configManager.getKeySequence());
+        globalHotkeyListener = new GlobalHotkeyListener2(this, hotkey, configManager.getKeySequence());
 
         frame = new JFrame("WhisperCat");
         frame.setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
@@ -112,7 +117,7 @@ public class AudioRecorderUI {
             }
         });
 
-        createTrayIcon();
+//        createTrayIcon();
 
         JPanel centerPanel = new JPanel();
         centerPanel.setLayout(new BoxLayout(centerPanel, BoxLayout.Y_AXIS));
@@ -174,11 +179,24 @@ public class AudioRecorderUI {
         frame.setSize(500, 450);
         frame.setLocationRelativeTo(null);
         frame.setJMenuBar(createMenuBar());
-        frame.setVisible(true);
+//        frame.setVisible(true);
 
         checkSettings();
 
+        javax.swing.GroupLayout layout = new javax.swing.GroupLayout(this);
+        this.setLayout(layout);
+
+        layout.setVerticalGroup(
+                layout.createParallelGroup(javax.swing.GroupLayout.Alignment.LEADING)
+                        .addGroup(layout.createSequentialGroup()
+                                .addContainerGap()
+                                .addGap(173, 173, 173)
+                                .addComponent(centerPanel)
+                                .addContainerGap(237, Short.MAX_VALUE))
+        );
+
     }
+
     private boolean isToggleInProgress = false;
     public void toggleRecording() {
         if (isToggleInProgress || isStoppingInProgress) {
@@ -220,7 +238,7 @@ public class AudioRecorderUI {
         if (recorder != null) {
             recorder.stop();
             logger.info("Recording stopped");
-            new AudioTranscriptionWorker(recorder.getOutputFile(), frame).execute();
+            new FormDashboard.AudioTranscriptionWorker(recorder.getOutputFile(), frame).execute();
         }
     }
 
@@ -228,7 +246,7 @@ public class AudioRecorderUI {
         isStoppingInProgress = true;
         recordButton.setText("Converting. Please wait...");
         recordButton.setEnabled(false);
-        new AudioTranscriptionWorker(audioFile, frame).execute();
+        new FormDashboard.AudioTranscriptionWorker(audioFile, frame).execute();
     }
 
     public void playClickSound() {
@@ -536,14 +554,4 @@ public class AudioRecorderUI {
         }
     }
 
-    public static void main(String[] args) {
-        try {
-            FlatLightLaf.setup();
-            UIManager.put("Toast.limit", 5);
-            UIManager.put("Toast.maximumWidth", 400);
-        } catch (Exception e) {
-            logger.info(e);
-        }
-        SwingUtilities.invokeLater(AudioRecorderUI::new);
-    }
 }
