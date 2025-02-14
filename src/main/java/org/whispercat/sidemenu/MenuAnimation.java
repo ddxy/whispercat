@@ -1,4 +1,4 @@
-package org.whispercat.menu;
+package org.whispercat.sidemenu;
 
 import com.formdev.flatlaf.util.Animator;
 import java.util.HashMap;

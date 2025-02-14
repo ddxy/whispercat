@@ -1,4 +1,4 @@
-package org.whispercat.menu;
+package org.whispercat.sidemenu;
 
 import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.util.UIScale;

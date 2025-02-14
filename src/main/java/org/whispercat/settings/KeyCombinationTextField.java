@@ -1,21 +1,24 @@
-package org.whispercat;
+package org.whispercat.settings;
 
 import com.github.kwhat.jnativehook.keyboard.NativeKeyEvent;
+
 import javax.swing.*;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.stream.Collectors;
+// TODO: Merge later
+public class KeyCombinationTextField extends JTextField {
+    private final Set<Integer> keysPressed = new HashSet<>();
+    private Set<Integer> keysDisplayed = new HashSet<>();
 
-public class KeySequenceTextField extends JTextField {
-    private final List<Integer> keySequence = new ArrayList<>();
-
-    public KeySequenceTextField() {
+    public KeyCombinationTextField() {
         disableDefaultKeyBindings();
         addFocusListener(new java.awt.event.FocusAdapter() {
             @Override
             public void focusLost(java.awt.event.FocusEvent evt) {
                 if (getText().isEmpty()) {
-                    clearSequence();
+                    setText("");
+                    keysDisplayed.clear();
                 }
             }
         });
@@ -35,42 +38,31 @@ public class KeySequenceTextField extends JTextField {
 
     public void processKeyPressed(NativeKeyEvent e) {
         if (hasFocus()) {
-            keySequence.add(e.getKeyCode());
+            keysPressed.add(e.getKeyCode());
             updateText();
         }
     }
 
     public void processKeyReleased(NativeKeyEvent e) {
+        if (hasFocus()) {
+            keysPressed.remove(e.getKeyCode());
+        }
     }
 
     private void updateText() {
-        String sequenceText = keySequence.stream()
+        String newKeyCombination = keysPressed.stream()
                 .map(NativeKeyEvent::getKeyText)
-                .collect(Collectors.joining(" -> "));
-        System.out.println(sequenceText);
-        setText(sequenceText);
+                .sorted()
+                .collect(Collectors.joining("+"));
+        setText(newKeyCombination);
+        keysDisplayed = new HashSet<>(keysPressed);
     }
 
-    public List<Integer> getKeysSequence() {
-        return new ArrayList<>(keySequence);
+    public Set<Integer> getKeysDisplayed() {
+        return new HashSet<>(keysDisplayed);
     }
 
-    public List<Integer> getKeysDisplayed() {
-        return getKeysSequence();
-    }
-
-    public void setKeysSequence(List<Integer> newSequence) {
-        keySequence.clear();
-        keySequence.addAll(newSequence);
-        updateText();
-    }
-
-    public void setKeysDisplayed(List<Integer> keysDisplayed) {
-        setKeysSequence(keysDisplayed);
-    }
-
-    public void clearSequence() {
-        keySequence.clear();
-        setText("");
+    public void setKeysDisplayed(Set<Integer> keysDisplayed) {
+        this.keysDisplayed = new HashSet<>(keysDisplayed);
     }
 }

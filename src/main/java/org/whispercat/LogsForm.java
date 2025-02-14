@@ -1,6 +1,4 @@
-package org.whispercat.form.other;
-
-import org.whispercat.TextAreaAppender;
+package org.whispercat;
 
 import javax.swing.JTextArea;
 import javax.swing.JScrollPane;

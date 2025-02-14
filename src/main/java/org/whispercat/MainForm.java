@@ -1,21 +1,22 @@
-package org.whispercat.form;
+package org.whispercat;
 
 import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
 import com.formdev.flatlaf.util.UIScale;
-import org.whispercat.ConfigManager;
-import org.whispercat.GlobalHotkeyListener2;
-import org.whispercat.WhisperClient;
-import org.whispercat.form.other.FormDashboard;
-import org.whispercat.form.other.LogsForm;
-import org.whispercat.form.other.SettingsForm;
-import org.whispercat.menu.Menu;
-import org.whispercat.menu.MenuAction;
+import org.whispercat.recording.RecorderForm;
+import org.whispercat.recording.WhisperClient;
+import org.whispercat.settings.SettingsForm;
+import org.whispercat.sidemenu.Menu;
+import org.whispercat.sidemenu.MenuAction;
+import org.whispercat.postprocessing.PostProcessingListForm;
+import org.whispercat.postprocessing.PostProcessingForm;
 
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -25,9 +26,9 @@ import java.io.OutputStream;
 public class MainForm extends JLayeredPane {
 
     private WhisperClient whisperClient;
-    private GlobalHotkeyListener2 globalHotkeyListener;
+    private GlobalHotkeyListener globalHotkeyListener;
     private ConfigManager configManager;
-    public FormDashboard formDashboard;
+    public RecorderForm recorderForm;
     public SettingsForm settingsForm;
     private static final org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(MainForm.class);
 
@@ -39,6 +40,7 @@ public class MainForm extends JLayeredPane {
         setBorder(new EmptyBorder(5, 5, 5, 5));
         setLayout(new MainFormLayout());
         menu = new Menu();
+
         panelBody = new JPanel(new BorderLayout());
         initMenuArrowIcon();
         menuButton.putClientProperty(FlatClientProperties.STYLE, ""
@@ -48,6 +50,13 @@ public class MainForm extends JLayeredPane {
                 + "borderWidth:0");
         menuButton.addActionListener((ActionEvent e) -> {
             setMenuFull(!menu.isMenuFull());
+        });
+
+        menu.getHeader().addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                menu.setSelectedMenu(0, 0);
+            }
         });
         initMenuEvent();
         setLayer(menuButton, JLayeredPane.POPUP_LAYER);
@@ -59,7 +68,7 @@ public class MainForm extends JLayeredPane {
         extractNativeLibraries();
         String hotkey = configManager.getKeyCombination();
         whisperClient = new WhisperClient(configManager);
-        globalHotkeyListener = new GlobalHotkeyListener2(this, hotkey, configManager.getKeySequence());
+        globalHotkeyListener = new GlobalHotkeyListener(this, hotkey, configManager.getKeySequence());
     }
 
     @Override
@@ -82,26 +91,39 @@ public class MainForm extends JLayeredPane {
             globalHotkeyListener.updateKeyCombination(configManager.getKeyCombination());
             globalHotkeyListener.updateKeySequence(configManager.getKeySequence());
 
-            // stop recording only if there is a switch from dashboard to another menu
-            if( index != 0 && formDashboard != null) {
-                formDashboard.stopRecording(true);
-                formDashboard = null;
+            // stop recording only if there is a switch from dashboard to another sidemenu
+            if( index != 0 && recorderForm != null) {
+                recorderForm.stopRecording(true);
+                recorderForm = null;
             }
 
-            if (index == 0 && formDashboard == null) {
-                this.formDashboard = new FormDashboard(configManager, whisperClient);
-                showForm(formDashboard);
+            if( index != 0 && settingsForm != null) {
+                settingsForm.stopAudioTest();
+                settingsForm = null;
+            }
+
+            if (index == 0 && recorderForm == null) {
+                this.recorderForm = new RecorderForm(configManager, whisperClient);
+                showForm(recorderForm);
             } else if (index == 1) {
                 if (subIndex == 1) {
-                    SettingsForm settingsForm1 = new SettingsForm(configManager);
-                    showForm(settingsForm1);
-                    globalHotkeyListener.setOptionsDialogOpen(true, settingsForm1.getKeybindTextField(), settingsForm1.getKeySequenceTextField());
+                    settingsForm = new SettingsForm(configManager);
+                    showForm(settingsForm);
+                    globalHotkeyListener.setOptionsDialogOpen(true, settingsForm.getKeybindTextField(), settingsForm.getKeySequenceTextField());
                 } else if (subIndex == 2) {
                     showForm(new LogsForm());
                 } else {
                     action.cancel();
                 }
-            } else if (index == 9) {
+            } else if (index == 2) {
+                if (subIndex == 1) {
+                    showForm(new PostProcessingListForm(configManager, this));
+                }
+                if (subIndex == 2) {
+                    showForm(new PostProcessingForm(configManager, null));
+                }
+            }
+            else if (index == 9) {
             } else {
                 action.cancel();
             }

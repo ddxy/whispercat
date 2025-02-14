@@ -1,4 +1,4 @@
-package org.whispercat.menu;
+package org.whispercat.sidemenu;
 
 public interface MenuEvent {
 

@@ -9,6 +9,7 @@ on:
     branches:
       - main
       - master
+      - feat/postprocessing
     tags:
       - 'v*'
   pull_request:

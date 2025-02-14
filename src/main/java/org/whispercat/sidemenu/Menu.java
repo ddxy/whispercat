@@ -1,35 +1,23 @@
-package org.whispercat.menu;
+package org.whispercat.sidemenu;
 
 import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.ui.FlatUIUtils;
 import com.formdev.flatlaf.util.UIScale;
-import org.whispercat.menu.mode.LightDarkMode;
-import org.whispercat.menu.mode.ToolBarAccentColor;
+import org.whispercat.sidemenu.mode.LightDarkMode;
+import org.whispercat.sidemenu.mode.ToolBarAccentColor;
 
-import java.awt.Component;
-import java.awt.Container;
-import java.awt.Dimension;
-import java.awt.Insets;
-import java.awt.LayoutManager;
+import javax.swing.*;
+import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
-import javax.swing.ImageIcon;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JScrollBar;
-import javax.swing.JScrollPane;
 
-/**
- *
- * @author Raven
- */
 public class Menu extends JPanel {
 
     private final String menuItems[][] = {
-        {"~MAIN~"},
-        {"Record"},
-        {"Settings", "Options", "Logs", "Compost"},
-        {"Post Processings", "Post Processings", "Create"},
+            {"~~"},
+            {"Record"},
+            {"Settings", "Options", "Logs"},
+            {"Post Processings", "Post Processings", "Create/Edit Post Processing"},
 
     };
 
@@ -174,6 +162,10 @@ public class Menu extends JPanel {
         revalidate();
     }
 
+    public JLabel getHeader() {
+        return header;
+    }
+
     public boolean isHideMenuTitleOnMinimum() {
         return hideMenuTitleOnMinimum;
     }
@@ -239,7 +231,7 @@ public class Menu extends JPanel {
                 int hgap = menuFull ? sheaderFullHgap : 0;
                 int accentColorHeight = 0;
                 if (toolBarAccentColor.isVisible()) {
-                    accentColorHeight = toolBarAccentColor.getPreferredSize().height+gap;
+                    accentColorHeight = toolBarAccentColor.getPreferredSize().height + gap;
                 }
 
                 header.setBounds(x + hgap, y, iconWidth - (hgap * 2), iconHeight);
@@ -247,7 +239,7 @@ public class Menu extends JPanel {
                 int ldWidth = width - ldgap * 2;
                 int ldHeight = lightDarkMode.getPreferredSize().height;
                 int ldx = x + ldgap;
-                int ldy = y + height - ldHeight - ldgap  - accentColorHeight;
+                int ldy = y + height - ldHeight - ldgap - accentColorHeight;
 
                 int menux = x;
                 int menuy = y + iconHeight + gap;
@@ -266,5 +258,9 @@ public class Menu extends JPanel {
                 }
             }
         }
+    }
+
+    public JPanel getPanelMenu() {
+        return panelMenu;
     }
 }

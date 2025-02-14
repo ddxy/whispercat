@@ -1,4 +1,4 @@
-package org.whispercat;
+package org.whispercat.recording;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,6 +11,7 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.whispercat.ConfigManager;
 
 import java.io.File;
 import java.io.IOException;

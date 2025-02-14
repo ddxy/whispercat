@@ -1,31 +1,16 @@
-package org.whispercat.menu;
+package org.whispercat.sidemenu;
 
 import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
 import com.formdev.flatlaf.ui.FlatUIUtils;
 import com.formdev.flatlaf.util.UIScale;
-import java.awt.BasicStroke;
-import java.awt.Color;
-import java.awt.Component;
-import java.awt.Container;
-import java.awt.Dimension;
-import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.awt.Insets;
-import java.awt.LayoutManager;
-import java.awt.RenderingHints;
-import java.awt.Shape;
+
+import javax.swing.*;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.geom.Path2D;
 import java.util.List;
-import javax.swing.Icon;
-import javax.swing.JButton;
-import javax.swing.JPanel;
 
-/**
- *
- * @author Raven
- */
 public class MenuItem extends JPanel {
 
     public boolean isMenuShow() {
@@ -77,7 +62,7 @@ public class MenuItem extends JPanel {
     private Icon getIcon() {
         Color lightColor = FlatUIUtils.getUIColor("Menu.icon.lightColor", Color.red);
         Color darkColor = FlatUIUtils.getUIColor("Menu.icon.darkColor", Color.red);
-        FlatSVGIcon icon = new FlatSVGIcon("icon/" + menuIndex + ".svg");
+        FlatSVGIcon icon = new FlatSVGIcon("icon/" + menuIndex + ".svg", 24, 24);
         FlatSVGIcon.ColorFilter f = new FlatSVGIcon.ColorFilter();
         f.add(Color.decode("#969696"), lightColor, darkColor);
         icon.setColorFilter(f);
@@ -103,6 +88,22 @@ public class MenuItem extends JPanel {
                         }
                     } else {
                         menu.runEvent(menuIndex, 0);
+                    }
+                });
+
+                menuItem.addMouseListener(new java.awt.event.MouseAdapter() {
+                    @Override
+                    public void mouseEntered(java.awt.event.MouseEvent e) {
+                        if (!menu.isMenuFull() && menus.length > 1) {
+                            popup.show(MenuItem.this, (int) MenuItem.this.getWidth() + UIScale.scale(5), UIScale.scale(menuItemHeight) / 2);
+                        }
+                    }
+
+                    @Override
+                    public void mouseExited(java.awt.event.MouseEvent e) {
+                        if (!menu.isMenuFull()) {
+                            //popup.setVisible(false);
+                        }
                     }
                 });
             } else {
@@ -327,5 +328,9 @@ public class MenuItem extends JPanel {
                 }
             }
         }
+    }
+
+    public PopupSubmenu getPopup() {
+        return popup;
     }
 }

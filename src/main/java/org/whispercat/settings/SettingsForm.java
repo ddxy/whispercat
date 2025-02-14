@@ -1,9 +1,11 @@
-package org.whispercat.form.other;
+package org.whispercat.settings;
 
 import com.github.kwhat.jnativehook.keyboard.NativeKeyEvent;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.whispercat.*;
+import org.whispercat.ConfigManager;
+import org.whispercat.Notificationmanager;
+import org.whispercat.ToastNotification;
 
 import javax.sound.sampled.*;
 import javax.swing.*;
@@ -28,6 +30,7 @@ public class SettingsForm extends JPanel {
 
     private final JProgressBar volumeBar;
     private final JButton stopTestButton;
+    private final JButton testMicrophoneButton;
 
     private AudioFormat format;
     private TargetDataLine line;
@@ -111,7 +114,7 @@ public class SettingsForm extends JPanel {
         gbc.gridwidth = 1;
         gbc.weightx = 0;
         gbc.anchor = GridBagConstraints.EAST;
-        contentPanel.add(new JLabel("API Key:"), gbc);
+        contentPanel.add(new JLabel("OpenAI API Key:"), gbc);
 
         apiKeyField = new JTextField(20);
         gbc.gridx = 1;
@@ -138,7 +141,11 @@ public class SettingsForm extends JPanel {
         gbc.anchor = GridBagConstraints.WEST;
         contentPanel.add(microphoneComboBox, gbc);
 
-        JButton testMicrophoneButton = new JButton("Test");
+        microphoneComboBox.addActionListener(e -> {
+            stopAudioTest();
+        });
+
+        testMicrophoneButton = new JButton("Test");
         gbc.gridx = 3;
         gbc.gridy = row;
         gbc.gridwidth = 1;
@@ -237,42 +244,73 @@ public class SettingsForm extends JPanel {
     }
 
     private void startAudioTest(String microphoneName) {
+        testMicrophoneButton.setEnabled(false);
         format = configManager.getAudioFormat();
         try {
             Mixer.Info mixerInfo = getMixerInfoByName(microphoneName);
             if (mixerInfo == null) {
-                JOptionPane.showMessageDialog(this, "Mikrofon nicht gefunden.", "Fehler", JOptionPane.ERROR_MESSAGE);
+                Notificationmanager.getInstance().showNotification(ToastNotification.Type.ERROR,
+                        "Microphone not found.");
                 return;
             }
             Mixer mixer = AudioSystem.getMixer(mixerInfo);
             DataLine.Info dataLineInfo = new DataLine.Info(TargetDataLine.class, format);
             if (!AudioSystem.isLineSupported(dataLineInfo)) {
-                JOptionPane.showMessageDialog(this, "Audio Line nicht unterstützt.", "Fehler", JOptionPane.ERROR_MESSAGE);
+                Notificationmanager.getInstance().showNotification(ToastNotification.Type.ERROR,
+                        "Audio Line not supported. Please select another device.");
                 return;
             }
             line = (TargetDataLine) mixer.getLine(dataLineInfo);
-            line.open(format);
+            int maxAttempts = 3;
+            int attempts = 0;
+            boolean opened = false;
+
+            while (attempts < maxAttempts && !opened) {
+                try {
+                    line.open(format);
+                    opened = true; // erfolgreich geöffnet
+                } catch (LineUnavailableException ex) {
+                    attempts++;
+                    if (attempts < maxAttempts) {
+                        try {
+                            Thread.sleep(2000); // 500 ms warten, bevor der nächste Versuch gestartet wird
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            logger.error("Interrupted while waiting to retry opening microphone line", ie);
+                            return;
+                        }
+                    } else {
+                        logger.error("Mic Line not available after " + maxAttempts + " attempts.", ex);
+                        Notificationmanager.getInstance().showNotification(ToastNotification.Type.ERROR,
+                                "Please try again selecting this mic.");
+                        return;
+                    }
+                }
+            }
+
             line.start();
 
-            // Starte den SwingWorker, der den Lautstärkepegel auswertet und in der ProgressBar anzeigt
             testWorker = new TestWorker();
             testWorker.execute();
         } catch (LineUnavailableException ex) {
-            logger.error("Mic Line ist nicht verfügbar", ex);
-            JOptionPane.showMessageDialog(this, "Mic Line ist nicht verfügbar. Bitte wähle ein anderes Gerät.", "Fehler", JOptionPane.ERROR_MESSAGE);
+            logger.error("Mic Line is not available. Please select another device.", ex);
+            Notificationmanager.getInstance().showNotification(ToastNotification.Type.ERROR,
+                    "Mic Line is not available. Please select another device.");
         }
     }
 
     /**
      * Beendet den Audio-Test und blendet die Testkomponenten aus.
      */
-    private void stopAudioTest() {
+    public void stopAudioTest() {
+        testMicrophoneButton.setEnabled(true);
         if (testWorker != null && !testWorker.isDone()) {
             testWorker.cancel(true);
         }
         if (line != null) {
             line.stop();
             line.close();
+            line = null;
         }
         volumeBar.setVisible(false);
         stopTestButton.setVisible(false);
@@ -281,7 +319,7 @@ public class SettingsForm extends JPanel {
     private Mixer.Info getMixerInfoByName(String name) {
         Mixer.Info[] mixers = AudioSystem.getMixerInfo();
         for (Mixer.Info mixer : mixers) {
-            if (mixer.getName().equals(name)) {
+            if (name.startsWith(mixer.getName())) {
                 return mixer;
             }
         }
@@ -370,7 +408,7 @@ public class SettingsForm extends JPanel {
                     logger.info("Mixer do not support this format: " + mixerInfo.getName());
                     return false;
                 })
-                .map(Mixer.Info::getName)
+                .map( i -> i.getName() + " Description: " + i.getDescription())
                 .toArray(String[]::new);
     }
 
@@ -407,6 +445,7 @@ public class SettingsForm extends JPanel {
         String selectedMicrophone = configManager.getProperty("selectedMicrophone");
         microphoneComboBox.setSelectedItem(selectedMicrophone);
 
+
         int bitrate = configManager.getAudioBitrate();
         bitrateComboBox.setSelectedItem(bitrate);
 
@@ -437,7 +476,7 @@ public class SettingsForm extends JPanel {
         configManager.setProperty("stopSound", String.valueOf(isStopSoundEnabled));
 
         configManager.saveConfig();
-        NotificationManager2.getInstance().showNotification(ToastNotification2.Type.SUCCESS,
+        Notificationmanager.getInstance().showNotification(ToastNotification.Type.SUCCESS,
                 "Settings saved.");
         logger.info("Settings saved: Key shortcuts - {}, Key sequence - {}, API Key - [REDACTED], Microphone - {}",
                 keyCombinationString, keySequenceString, microphoneComboBox.getSelectedItem());

@@ -24,13 +24,13 @@ WhisperCat is your personal companion for capturing audio, transcribing it, and 
 - **Global Hotkey Support**:
     - Start/stop recording using a global hotkey combination (e.g., `CTRL + R`).
     - Alternatively, use a hotkey sequence (e.g., triple `ALT`) to start/stop recording.
-- **Background Mode**: Minimize the application to the system tray, allowing it to run in the background.
+- **Background Mode**: Minimize the audioRecorderUI to the system tray, allowing it to run in the background.
 - **Microphone Test Functionality**: Ensure you've selected the correct microphone before recording.
-- **Notifications**: Receive notifications for important application events, such as recording start/stop or errors.
+- **Notifications**: Receive notifications for important audioRecorderUI events, such as recording start/stop or errors.
 - **GUI for Settings Management**:
     - Enter your API key for Whisper transcription.
     - Choose and test a microphone.
-    - Customize application preferences, including hotkeys and notifications.
+    - Customize audioRecorderUI preferences, including hotkeys and notifications.
 
 ---
 
@@ -62,9 +62,9 @@ Here are some planned ideas and features for future releases:
 - **Audio Format Options**: Allow users to choose the output audio format (e.g., WAV, MP3).
 - **Multiple Language Support**: Expand GUI and transcription support to more languages.
 - **Custom Shortcuts**: Add the ability to configure custom hotkeys for various actions.
-- **Audio Playback**: Integrate audio playback functionality for recorded files directly within the application.
+- **Audio Playback**: Integrate audio playback functionality for recorded files directly within the audioRecorderUI.
 - **Continuous Recording Mode**: Enable a mode for long-term recording sessions with automatic splitting of large files.
-- **Much more**: Maybe another way to package the application
+- **Much more**: Maybe another way to package the audioRecorderUI
 
 Feel free to contribute any of these features or suggest new ones in the issues section!
 
@@ -118,6 +118,11 @@ This project is licensed under the **MIT License**.
 
 - **[OpenAI Whisper API](https://openai.com/whisper)** for providing a powerful transcription engine.
 - **[SVG Repo](https://www.svgrepo.com/collection/news/)** for vector graphic resources, including the project icon.
+- https://www.svgrepo.com/svg/523073/trash-bin-minimalistic
+- https://www.svgrepo.com/svg/522526/edit
+- https://www.svgrepo.com/collection/flat-ui-icons/
+- https://github.com/DJ-Raven/flatlaf-dashboard
+- https://www.svgrepo.com/collection/noto-emojis/
 
 ---
 

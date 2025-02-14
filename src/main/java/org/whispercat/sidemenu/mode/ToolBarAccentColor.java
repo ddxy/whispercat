@@ -1,13 +1,12 @@
-package org.whispercat.menu.mode;
+package org.whispercat.sidemenu.mode;
 
 import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.FlatLaf;
 import com.formdev.flatlaf.icons.FlatAbstractIcon;
-import com.formdev.flatlaf.ui.FlatUIUtils;
 import com.formdev.flatlaf.util.ColorFunctions;
 import com.formdev.flatlaf.util.LoggingFacade;
 import com.formdev.flatlaf.util.UIScale;
-import org.whispercat.menu.Menu;
+import org.whispercat.sidemenu.Menu;
 
 import java.awt.BorderLayout;
 import java.awt.Color;

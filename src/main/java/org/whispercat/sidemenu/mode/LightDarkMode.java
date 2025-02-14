@@ -1,4 +1,4 @@
-package org.whispercat.menu.mode;
+package org.whispercat.sidemenu.mode;
 
 import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.FlatLaf;
@@ -17,10 +17,7 @@ import javax.swing.JButton;
 import javax.swing.JPanel;
 import javax.swing.border.EmptyBorder;
 
-/**
- *
- * @author Raven
- */
+
 public class LightDarkMode extends JPanel {
 
     public void setMenuFull(boolean menuFull) {
