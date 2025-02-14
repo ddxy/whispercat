@@ -5,30 +5,30 @@ import java.awt.*;
 import java.util.ArrayList;
 import java.util.List;
 
-public class NotificationManager {
+public class Notificationmanager {
     private static final int MAX_NOTIFICATIONS = 5;
     private static final int NOTIFICATION_SPACING = 10;
-    private static NotificationManager instance;
+    private static Notificationmanager instance;
     private final List<ToastNotification> notifications = new ArrayList<>();
     private final Timer animationTimer;
     private static Window parent;
-    private NotificationManager() {
+    private Notificationmanager() {
         animationTimer = new Timer(30, e -> updateAnimations());
         animationTimer.start();
     }
 
-    public static synchronized NotificationManager getInstance() {
+    public static synchronized Notificationmanager getInstance() {
         if (instance == null) {
-            instance = new NotificationManager();
+            instance = new Notificationmanager();
         }
         return instance;
     }
 
-    public static void setWindow(Application application) {
-        parent = application;
+    public static void setWindow(AudioRecorderUI audioRecorderUI) {
+        parent = audioRecorderUI;
     }
 
-    public synchronized void showNotification(Window parent, ToastNotification.Type type, String message) {
+    public synchronized void showNotification(ToastNotification.Type type, String message) {
         if (notifications.size() >= MAX_NOTIFICATIONS) {
             ToastNotification oldestNotification = notifications.remove(0);
             oldestNotification.dispose();
