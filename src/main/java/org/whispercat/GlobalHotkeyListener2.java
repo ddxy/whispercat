@@ -6,9 +6,6 @@ import com.github.kwhat.jnativehook.keyboard.NativeKeyListener;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.whispercat.form.MainForm;
-import org.whispercat.form.other.FormDashboard;
-
-import java.text.Normalizer;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -78,7 +75,8 @@ public class GlobalHotkeyListener2 implements NativeKeyListener {
     }
 
     @Override
-    public void nativeKeyTyped(NativeKeyEvent e) {}
+    public void nativeKeyTyped(NativeKeyEvent e) {
+    }
 
     public void updateKeyCombination(String newCombination) {
         if (newCombination != null && !newCombination.isEmpty()) {

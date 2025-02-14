@@ -24,10 +24,6 @@ import javax.swing.LookAndFeel;
 import javax.swing.SwingUtilities;
 import javax.swing.UIManager;
 
-/**
- *
- * @author Raven
- */
 public class ToolBarAccentColor extends JPanel {
 
     private final Menu menu;

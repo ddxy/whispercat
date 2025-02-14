@@ -27,24 +27,6 @@ public class Application extends javax.swing.JFrame {
     private static SystemTray systemTray;
 
     public Application() {
-        initComponents();
-        setSize(new Dimension(1366, 768));
-        setLocationRelativeTo(null);
-        mainForm = new MainForm();
-        setContentPane(mainForm);
-        getRootPane().putClientProperty(FlatClientProperties.FULL_WINDOW_CONTENT, true);
-    }
-
-    public static void showForm(Component component) {
-        component.applyComponentOrientation(app.getComponentOrientation());
-        app.mainForm.showForm(component);
-    }
-
-    public static void setSelectedMenu(int index, int subIndex) {
-        app.mainForm.setSelectedMenu(index, subIndex);
-    }
-
-    private void initComponents() {
         NotificationManager2.setWindow(this);
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(getContentPane());
         getContentPane().setLayout(layout);
@@ -70,6 +52,22 @@ public class Application extends javax.swing.JFrame {
             }
         });
         pack();
+
+
+        setSize(new Dimension(1366, 768));
+        setLocationRelativeTo(null);
+        mainForm = new MainForm();
+        setContentPane(mainForm);
+        getRootPane().putClientProperty(FlatClientProperties.FULL_WINDOW_CONTENT, true);
+    }
+
+
+    public static void setSelectedMenu(int index, int subIndex) {
+        app.mainForm.setSelectedMenu(index, subIndex);
+    }
+
+    private void initComponents() {
+
     }
 
     private void createTrayIcon() {

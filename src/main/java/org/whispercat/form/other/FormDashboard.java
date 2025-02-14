@@ -34,7 +34,6 @@ public class FormDashboard extends javax.swing.JPanel {
     private  JButton recordButton;
     private  int baseIconSize = 200;
     private  WhisperClient whisperClient;
-    private  GlobalHotkeyListener2 globalHotkeyListener;
     private  ConfigManager configManager;
     private boolean isRecording = false;
     private AudioRecorder recorder;
@@ -47,7 +46,7 @@ public class FormDashboard extends javax.swing.JPanel {
     private SystemTray systemTray;
     private MenuItem recordToggleMenuItem;
 
-    public FormDashboard(ConfigManager configManager, WhisperClient whisperClient,GlobalHotkeyListener2 globalHotkeyListener) {
+    public FormDashboard(ConfigManager configManager, WhisperClient whisperClient) {
         this.configManager = configManager;
         String hotkey = configManager.getKeyCombination();
         this.whisperClient = whisperClient;
@@ -189,7 +188,7 @@ public class FormDashboard extends javax.swing.JPanel {
             startRecording();
             updateUIForRecordingStart();
         } else {
-            stopRecording();
+            stopRecording(false);
         }
         updateTrayMenu();
     }
@@ -211,7 +210,7 @@ public class FormDashboard extends javax.swing.JPanel {
 
     private boolean isStoppingInProgress = false;
 
-    private void stopRecording() {
+    public void stopRecording(boolean cancelledRecording) {
         updateUIForRecordingStop();
         isStoppingInProgress = true;
         recordButton.setText("Converting. Please wait...");
@@ -219,7 +218,11 @@ public class FormDashboard extends javax.swing.JPanel {
         if (recorder != null) {
             recorder.stop();
             logger.info("Recording stopped");
-            new FormDashboard.AudioTranscriptionWorker(recorder.getOutputFile()).execute();
+            if(!cancelledRecording) {
+                new FormDashboard.AudioTranscriptionWorker(recorder.getOutputFile()).execute();
+            } else {
+                logger.info("Recording cancelled");
+            }
         }
     }
 
