@@ -3,7 +3,6 @@ package org.whispercat.form;
 import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
 import com.formdev.flatlaf.util.UIScale;
-import org.whispercat.Application;
 import org.whispercat.ConfigManager;
 import org.whispercat.GlobalHotkeyListener2;
 import org.whispercat.WhisperClient;
@@ -12,6 +11,7 @@ import org.whispercat.form.other.LogsForm;
 import org.whispercat.form.other.SettingsForm;
 import org.whispercat.menu.Menu;
 import org.whispercat.menu.MenuAction;
+
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
@@ -24,9 +24,9 @@ import java.io.OutputStream;
 
 public class MainForm extends JLayeredPane {
 
-    private  WhisperClient whisperClient;
-    private  GlobalHotkeyListener2 globalHotkeyListener;
-    private  ConfigManager configManager;
+    private WhisperClient whisperClient;
+    private GlobalHotkeyListener2 globalHotkeyListener;
+    private ConfigManager configManager;
     public FormDashboard formDashboard;
     public SettingsForm settingsForm;
     private static final org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(MainForm.class);
@@ -60,8 +60,6 @@ public class MainForm extends JLayeredPane {
         String hotkey = configManager.getKeyCombination();
         whisperClient = new WhisperClient(configManager);
         globalHotkeyListener = new GlobalHotkeyListener2(this, hotkey, configManager.getKeySequence());
-        formDashboard = new FormDashboard(configManager, whisperClient, globalHotkeyListener);
-        settingsForm = new SettingsForm(configManager);
     }
 
     @Override
@@ -81,14 +79,25 @@ public class MainForm extends JLayeredPane {
     private void initMenuEvent() {
         menu.addMenuEvent((int index, int subIndex, MenuAction action) -> {
             globalHotkeyListener.setOptionsDialogOpen(false, null, null);
-            if (index == 0) {
-                Application.showForm(formDashboard);
+            globalHotkeyListener.updateKeyCombination(configManager.getKeyCombination());
+            globalHotkeyListener.updateKeySequence(configManager.getKeySequence());
+
+            // stop recording only if there is a switch from dashboard to another menu
+            if( index != 0 && formDashboard != null) {
+                formDashboard.stopRecording(true);
+                formDashboard = null;
+            }
+
+            if (index == 0 && formDashboard == null) {
+                this.formDashboard = new FormDashboard(configManager, whisperClient);
+                showForm(formDashboard);
             } else if (index == 1) {
                 if (subIndex == 1) {
-                    globalHotkeyListener.setOptionsDialogOpen(true, settingsForm.getKeybindTextField(), settingsForm.getKeySequenceTextField());
-                    Application.showForm(settingsForm);
+                    SettingsForm settingsForm1 = new SettingsForm(configManager);
+                    showForm(settingsForm1);
+                    globalHotkeyListener.setOptionsDialogOpen(true, settingsForm1.getKeybindTextField(), settingsForm1.getKeySequenceTextField());
                 } else if (subIndex == 2) {
-                    Application.showForm(new LogsForm());
+                    showForm(new LogsForm());
                 } else {
                     action.cancel();
                 }
