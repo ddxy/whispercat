@@ -230,6 +230,7 @@ public class PostProcessingForm extends JPanel {
         private JPanel replacementPanel;
         private JTextArea systemPromptArea;
         private JTextArea userPromptArea;
+        private Font defaultFont = new JTextArea().getFont();
         private JComboBox<String> providerCombo;
         private JComboBox<String> modelCombo;
         private JTextField textToReplaceField;
@@ -339,8 +340,8 @@ public class PostProcessingForm extends JPanel {
             attachTextAreaForwarder(userPromptArea, scrollPane);
 
             // Set placeholders for system and user prompt areas.
-            setPlaceholder(systemPromptArea, SYSTEM_PROMPT_PLACEHOLDER);
-            setPlaceholder(userPromptArea, USER_PROMPT_PLACEHOLDER);
+            setPlaceholder(systemPromptArea, SYSTEM_PROMPT_PLACEHOLDER, defaultFont);
+            setPlaceholder(userPromptArea, USER_PROMPT_PLACEHOLDER, defaultFont);
         }
 
         @Override
@@ -375,19 +376,20 @@ public class PostProcessingForm extends JPanel {
                 // For system prompt area: Set text and enforce black text if data is present.
                 if (stepData.systemPrompt != null && !stepData.systemPrompt.trim().isEmpty()) {
                     systemPromptArea.setText(stepData.systemPrompt);
-                    systemPromptArea.setForeground(Color.BLACK);
+                    systemPromptArea.setFont(defaultFont);
                 } else {
                     systemPromptArea.setText(SYSTEM_PROMPT_PLACEHOLDER);
-                    systemPromptArea.setForeground(Color.GRAY);
+                    systemPromptArea.setFont(defaultFont.deriveFont(Font.ITALIC));
+
                 }
 
                 // For user prompt area: Set text and enforce black text if data is present.
                 if (stepData.userPrompt != null && !stepData.userPrompt.trim().isEmpty()) {
                     userPromptArea.setText(stepData.userPrompt);
-                    userPromptArea.setForeground(Color.BLACK);
+                    userPromptArea.setFont(defaultFont);
                 } else {
                     userPromptArea.setText(USER_PROMPT_PLACEHOLDER);
-                    userPromptArea.setForeground(Color.GRAY);
+                    userPromptArea.setFont(defaultFont.deriveFont(Font.ITALIC));
                 }
             } else if ("Text Replacement".equals(stepData.type)) {
                 textToReplaceField.setText(stepData.textToReplace);
@@ -480,19 +482,20 @@ public class PostProcessingForm extends JPanel {
 
     /**
      * A helper method to set a placeholder into a JTextArea.
-     * When the text area is unfocused and empty, the placeholder is displayed in gray.
+     * When the text area is unfocused and empty, the placeholder is displayed in italic font.
      * When the user focuses the field and the text equals the placeholder, it is cleared.
      *
      * @param textArea    the JTextArea
      * @param placeholder the placeholder text
+     * @param defaultFont
      */
-    private void setPlaceholder(JTextArea textArea, String placeholder) {
+    private void setPlaceholder(JTextArea textArea, String placeholder, Font defaultFont) {
         // Only set the placeholder if the text area is initially empty.
         if (textArea.getText().trim().isEmpty()) {
-            textArea.setForeground(Color.GRAY);
+            textArea.setFont(defaultFont.deriveFont(Font.ITALIC));
             textArea.setText(placeholder);
         } else {
-            textArea.setForeground(Color.BLACK);
+            textArea.setFont(defaultFont);
         }
 
         textArea.addFocusListener(new FocusAdapter() {
@@ -500,17 +503,17 @@ public class PostProcessingForm extends JPanel {
             public void focusGained(FocusEvent e) {
                 if (textArea.getText().equals(placeholder)) {
                     textArea.setText("");
-                    textArea.setForeground(Color.BLACK);
+                    textArea.setFont(defaultFont);
                 }
             }
 
             @Override
             public void focusLost(FocusEvent e) {
                 if (textArea.getText().trim().isEmpty()) {
-                    textArea.setForeground(Color.GRAY);
+                    textArea.setFont(defaultFont.deriveFont(Font.ITALIC));
                     textArea.setText(placeholder);
                 } else {
-                    textArea.setForeground(Color.BLACK);
+                    textArea.setFont(defaultFont);
                 }
             }
         });

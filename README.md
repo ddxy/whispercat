@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  <img alt="Latest Version" src="https://img.shields.io/badge/Latest%20Version-v1.0.0-brightgreen?style=flat-square&logo=github&logoColor=white" />
+  <img alt="Latest Version" src="https://img.shields.io/badge/Latest%20Version-v1.2.0-brightgreen?style=flat-square&logo=github&logoColor=white" />
   <a href="LICENSE" target="https://opensource.org/license/mit">
     <img alt="MIT License" src="https://img.shields.io/badge/License-MIT-blue?style=flat-square&logo=github&logoColor=white" />
   </a>
@@ -21,6 +21,12 @@ WhisperCat is your personal companion for capturing audio, transcribing it, and 
 
 - **Record Audio**: Capture sound using your chosen microphone.
 - **Automated Transcription**: Process and transcribe your recordings with OpenAI Whisper API.
+- **Post-Processing**:
+  Enhance the generated speech-to-text output by:
+  Applying text replacements to clean up or adjust the transcript.
+  Performing an additional query to OpenAI to refine and improve the text.
+  Combining these post-processing steps in any order for optimal results.
+
 - **Global Hotkey Support**:
     - Start/stop recording using a global hotkey combination (e.g., `CTRL + R`).
     - Alternatively, use a hotkey sequence (e.g., triple `ALT`) to start/stop recording.
@@ -48,7 +54,7 @@ Here's what WhisperCat looks like in action:
 ## Installation
 
 1. Visit the **[Releases Page](https://github.com/ddxy/whispercat/releases)** for the WhisperCat project.
-2. Download the latest version (`v1.0.0`) for your operating system and follow the setup instructions.
+2. Download the latest version (`v1.2.0`) for your operating system and follow the setup instructions.
 
 ---
 
