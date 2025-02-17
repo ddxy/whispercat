@@ -26,17 +26,17 @@ WhisperCat is your personal companion for capturing audio, transcribing it, and 
   Applying text replacements to clean up or adjust the transcript.
   Performing an additional query to OpenAI to refine and improve the text.
   Combining these post-processing steps in any order for optimal results.
-
 - **Global Hotkey Support**:
     - Start/stop recording using a global hotkey combination (e.g., `CTRL + R`).
     - Alternatively, use a hotkey sequence (e.g., triple `ALT`) to start/stop recording.
-- **Background Mode**: Minimize the audioRecorderUI to the system tray, allowing it to run in the background.
+- **Background Mode**: Minimize WhisperCat to the system tray, allowing it to run in the background.
 - **Microphone Test Functionality**: Ensure you've selected the correct microphone before recording.
 - **Notifications**: Receive notifications for important audioRecorderUI events, such as recording start/stop or errors.
 - **GUI for Settings Management**:
     - Enter your API key for Whisper transcription.
     - Choose and test a microphone.
-    - Customize audioRecorderUI preferences, including hotkeys and notifications.
+    - Customize preferences, including hotkeys.
+- **Dark Mode Support**: Switch between light and dark themes.
 
 ---
 
@@ -62,6 +62,8 @@ Here's what WhisperCat looks like in action:
 
 Here are some planned ideas and features for future releases:
 - **Faster Whisperer**: Add support for Faster Whisperer Server.
+- **Groq Whisperer**: Add support for Groq Whisperer Server.
+- **Groq and Anthropic Post-Processing**: Add support for Groq and Anthropic Post-Processing.
 - **macOS Support**: While full macOS support is planned, an **experimental version** is already available. Check it out here: [Experimental macOS Build](https://github.com/ddxy/whispercat/releases/tag/v1.0.0). Feedback is welcome!
 - **Microphone Selection Improvements**: Revamp the microphone selection process to make it more user-friendly and intuitive.
 - **Icon Fixes**: Refine and improve icons and UI graphics for better display on all platforms.
