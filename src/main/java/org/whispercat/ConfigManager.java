@@ -234,7 +234,7 @@ public class ConfigManager {
     }
 
     public String getWhisperServer() {
-        return properties.getProperty("whisperServer", "");
+        return properties.getProperty("whisperServer", "OpenAI");
     }
 
     public String getFasterWhisperModel() {
