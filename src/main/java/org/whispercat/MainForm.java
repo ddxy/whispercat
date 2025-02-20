@@ -3,6 +3,7 @@ package org.whispercat;
 import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
 import com.formdev.flatlaf.util.UIScale;
+import org.whispercat.recording.FasterWhisperClient;
 import org.whispercat.recording.RecorderForm;
 import org.whispercat.recording.WhisperClient;
 import org.whispercat.settings.SettingsForm;
@@ -25,7 +26,7 @@ import java.io.OutputStream;
 
 public class MainForm extends JLayeredPane {
 
-    private WhisperClient whisperClient;
+
     private GlobalHotkeyListener globalHotkeyListener;
     private ConfigManager configManager;
     public RecorderForm recorderForm;
@@ -67,7 +68,6 @@ public class MainForm extends JLayeredPane {
         configManager = new ConfigManager();
         extractNativeLibraries();
         String hotkey = configManager.getKeyCombination();
-        whisperClient = new WhisperClient(configManager);
         globalHotkeyListener = new GlobalHotkeyListener(this, hotkey, configManager.getKeySequence());
     }
 
@@ -103,7 +103,8 @@ public class MainForm extends JLayeredPane {
             }
 
             if (index == 0 && recorderForm == null) {
-                this.recorderForm = new RecorderForm(configManager, whisperClient);
+                this.recorderForm = new RecorderForm(configManager);
+                this.recorderForm = new RecorderForm(configManager);
                 showForm(recorderForm);
             } else if (index == 1) {
                 if (subIndex == 1) {

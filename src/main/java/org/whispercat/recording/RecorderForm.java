@@ -29,12 +29,13 @@ import java.util.Optional;
 
 public class RecorderForm extends javax.swing.JPanel {
 
-    private final  JTextArea processedText = new JTextArea(3, 20);
-    private final JCheckBox enablePostProcessingCheckBox = new JCheckBox(    "<html>Enable Post Processing&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</html>");
+    private final JTextArea processedText = new JTextArea(3, 20);
+    private final JCheckBox enablePostProcessingCheckBox = new JCheckBox("<html>Enable Post Processing&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</html>");
     private final JButton recordButton;
     private final int baseIconSize = 200;
     private final WhisperClient whisperClient;
     private final ConfigManager configManager;
+    private final FasterWhisperClient fasterWhisperClient;
     private boolean isRecording = false;
     private AudioRecorder recorder;
     private final JTextArea transcriptionTextArea;
@@ -47,9 +48,10 @@ public class RecorderForm extends javax.swing.JPanel {
     private JComboBox<PostProcessingItem> postProcessingSelectComboBox;
     private List<PostProcessingData> postProcessingJSONList;
 
-    public RecorderForm(ConfigManager configManager, WhisperClient whisperClient) {
+    public RecorderForm(ConfigManager configManager) {
         this.configManager = configManager;
-        this.whisperClient = whisperClient;
+        this.whisperClient = new WhisperClient(configManager);
+        this.fasterWhisperClient = new FasterWhisperClient(configManager);
 
 
         JPanel centerPanel = new JPanel();
@@ -209,7 +211,6 @@ public class RecorderForm extends javax.swing.JPanel {
         CardLayout cl = (CardLayout) cardPanel.getLayout();
         cl.show(cardPanel, "none");
         postProcessingContainerPanel.add(cardPanel);
-
 
 
         processedText.setLineWrap(true);
@@ -507,7 +508,16 @@ public class RecorderForm extends javax.swing.JPanel {
         @Override
         protected String doInBackground() {
             try {
-                return whisperClient.transcribe(audioFile);
+                if (configManager.getWhisperServer().equals("OpenAI")) {
+                    return whisperClient.transcribe(audioFile);
+                } else if (configManager.getWhisperServer().equals("Faster-Whisper")) {
+                    return fasterWhisperClient.transcribe(audioFile);
+                } else {
+                    logger.error("Unknown Whisper server: " + configManager.getWhisperServer());
+                    Notificationmanager.getInstance().showNotification(ToastNotification.Type.ERROR,
+                            "Unknown Whisper server: " + configManager.getWhisperServer());
+                    return null;
+                }
             } catch (Exception e) {
                 logger.error("Error during transcription", e);
                 Notificationmanager.getInstance().showNotification(ToastNotification.Type.ERROR,
