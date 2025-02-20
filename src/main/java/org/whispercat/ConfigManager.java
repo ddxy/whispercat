@@ -233,6 +233,22 @@ public class ConfigManager {
         return Boolean.parseBoolean(properties.getProperty("postProcessingOnStartup", "false"));
     }
 
+    public String getWhisperServer() {
+        return properties.getProperty("whisperServer", "");
+    }
+
+    public String getFasterWhisperModel() {
+        return properties.getProperty("fasterWhisperModel", "");
+    }
+
+    public String getFasterWhisperLanguage() {
+        return properties.getProperty("fasterWhisperLanguage", "");
+    }
+
+    public String getFasterWhisperServerUrl() {
+        return properties.getProperty("fasterWhisperServerUrl", "");
+    }
+
     public String getLastUsedPostProcessingUUID() {
         return properties.getProperty("lastUsedPostProcessingUUID", "");
     }
