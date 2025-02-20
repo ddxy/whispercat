@@ -57,7 +57,7 @@ Here's what WhisperCat looks like in action:
 ## Installation
 
 1. Visit the **[Releases Page](https://github.com/ddxy/whispercat/releases)** for the WhisperCat project.
-2. Download the latest version (`v1.2.0`) for your operating system and follow the setup instructions.
+2. Download the latest version for your operating system and follow the setup instructions.
 
 ---
 
