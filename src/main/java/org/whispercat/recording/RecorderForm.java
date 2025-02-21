@@ -5,6 +5,9 @@ import com.formdev.flatlaf.util.UIScale;
 import org.whispercat.*;
 import org.whispercat.postprocessing.PostProcessingData;
 import org.whispercat.postprocessing.PostProcessingService;
+import org.whispercat.recording.clients.FasterWhisperTranscribeClient;
+import org.whispercat.recording.clients.OpenAITranscribeClient;
+import org.whispercat.recording.clients.OpenWebUITranscribeClient;
 
 import javax.sound.sampled.AudioInputStream;
 import javax.sound.sampled.AudioSystem;
@@ -33,9 +36,10 @@ public class RecorderForm extends javax.swing.JPanel {
     private final JCheckBox enablePostProcessingCheckBox = new JCheckBox("<html>Enable Post Processing&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</html>");
     private final JButton recordButton;
     private final int baseIconSize = 200;
-    private final WhisperClient whisperClient;
+    private final OpenAITranscribeClient whisperClient;
     private final ConfigManager configManager;
-    private final FasterWhisperClient fasterWhisperClient;
+    private final FasterWhisperTranscribeClient fasterWhisperTranscribeClient;
+    private final OpenWebUITranscribeClient openWebUITranscribeClient;
     private boolean isRecording = false;
     private AudioRecorder recorder;
     private final JTextArea transcriptionTextArea;
@@ -50,8 +54,9 @@ public class RecorderForm extends javax.swing.JPanel {
 
     public RecorderForm(ConfigManager configManager) {
         this.configManager = configManager;
-        this.whisperClient = new WhisperClient(configManager);
-        this.fasterWhisperClient = new FasterWhisperClient(configManager);
+        this.whisperClient = new OpenAITranscribeClient(configManager);
+        this.fasterWhisperTranscribeClient = new FasterWhisperTranscribeClient(configManager);
+        this.openWebUITranscribeClient = new OpenWebUITranscribeClient(configManager);
 
 
         JPanel centerPanel = new JPanel();
@@ -509,9 +514,14 @@ public class RecorderForm extends javax.swing.JPanel {
         protected String doInBackground() {
             try {
                 if (configManager.getWhisperServer().equals("OpenAI")) {
+                    logger.info("Transcribing audio using OpenAI");
                     return whisperClient.transcribe(audioFile);
                 } else if (configManager.getWhisperServer().equals("Faster-Whisper")) {
-                    return fasterWhisperClient.transcribe(audioFile);
+                    logger.info("Transcribing audio using Faster-Whisper");
+                    return fasterWhisperTranscribeClient.transcribe(audioFile);
+                } else if (configManager.getWhisperServer().equals("Open WebUI")) {
+                    logger.info("Transcribing audio using Open WebUI");
+                    return openWebUITranscribeClient.transcribeAudio(audioFile);
                 } else {
                     logger.error("Unknown Whisper server: " + configManager.getWhisperServer());
                     Notificationmanager.getInstance().showNotification(ToastNotification.Type.ERROR,

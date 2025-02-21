@@ -1,4 +1,4 @@
-package org.whispercat.recording;
+package org.whispercat.recording.clients;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,12 +17,12 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-public class WhisperClient {
-    private static final Logger logger = LogManager.getLogger(WhisperClient.class);
+public class OpenAITranscribeClient {
+    private static final Logger logger = LogManager.getLogger(OpenAITranscribeClient.class);
     private static final String API_URL = "https://api.openai.com/v1/audio/transcriptions";
     private final ConfigManager configManager;
 
-    public WhisperClient(ConfigManager configManager) {
+    public OpenAITranscribeClient(ConfigManager configManager) {
         this.configManager = configManager;
     }
 

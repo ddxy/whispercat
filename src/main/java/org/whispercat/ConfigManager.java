@@ -266,4 +266,21 @@ public class ConfigManager {
         properties.setProperty("autoPaste", String.valueOf(selected));
         saveConfig();
     }
+
+    // openwebUIApiKey
+    public String getOpenWebUIApiKey() {
+        return properties.getProperty("openWebUIApiKey", "");
+    }
+
+    public void setOpenWebUIApiKey(String apiKey) {
+        properties.setProperty("openWebUIApiKey", apiKey);
+    }
+
+    public String getOpenWebUIServerUrl() {
+        return properties.getProperty("openWebUIServerUrl", "");
+    }
+
+    public void setOpenWebUIServerUrl(String url) {
+        properties.setProperty("openWebUIServerUrl", url);
+    }
 }

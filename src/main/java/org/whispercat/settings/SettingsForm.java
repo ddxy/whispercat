@@ -7,8 +7,8 @@ import org.apache.logging.log4j.Logger;
 import org.whispercat.ConfigManager;
 import org.whispercat.Notificationmanager;
 import org.whispercat.ToastNotification;
-import org.whispercat.recording.FasterWhisperModel;
-import org.whispercat.recording.FasterWhisperModelsResponse;
+import org.whispercat.recording.clients.FasterWhisperModel;
+import org.whispercat.recording.clients.FasterWhisperModelsResponse;
 
 import javax.sound.sampled.*;
 import javax.swing.*;
@@ -40,32 +40,33 @@ public class SettingsForm extends JPanel {
     private TargetDataLine line;
     private TestWorker testWorker;
 
-    // New components for Whispering Server selection and configuration
     private final JLabel whisperServerLabel;
     private final JComboBox<String> whisperServerComboBox;
-    private final JPanel whisperSettingsPanel; // Panel that holds server-specific sub-panels (CardLayout)
-    private final JPanel fasterWhispererPanel;   // Panel for Faster-Whisperer settings
-    private final JPanel groqPanel;              // Panel for Groq settings
-    private final JPanel openaiPanel;            // Panel for OpenAI settings
+    private final JPanel whisperSettingsPanel;
+    private final JPanel fasterWhispererPanel;
+    private final JPanel groqPanel;
+    private final JPanel openaiPanel;
+    private final JPanel openWebUIPanel;
 
-    // Components for Faster-Whisperer settings (in this panel API-Key field removed)
     private final JTextField whisperServerUrlField;
     private final JComboBox<String> fasterWhisperModelComboBox;
-    private final JComboBox<String> fasterWhisperLanguageComboBox; // New language selectbox
+    private final JComboBox<String> fasterWhisperLanguageComboBox;
 
-    // Components for Groq settings
     private final JTextField groqApiKeyField;
     private final JComboBox<String> groqModelComboBox;
 
-    // Components for OpenAI settings (for Whisper)
     private JTextField openaiApiKeyField;
 
-    // Constants for Whispering Server options
+    private JTextField grokApiKeyField;
+
+    private JTextField openwebUIApiKeyField;
+    private JTextField openwebUIApiURLField;
+
     private static final String SERVER_FASTER_WHISPER = "Faster-Whisper";
+    private static final String OPEN_WEB_UI = "Open WebUI";
     private static final String SERVER_GROQ = "Groq";
     private static final String SERVER_OPENAI = "OpenAI";
 
-    // Mapping for Faster-Whisper models to available languages (first option is always empty for "no language")
     private final Map<String, List<String>> fastModelLanguages;
 
     public SettingsForm(ConfigManager configManager) {
@@ -78,11 +79,9 @@ public class SettingsForm extends JPanel {
         stopTestButton.setVisible(false);
         stopTestButton.addActionListener(e -> stopAudioTest());
 
-        // Statt der statischen Definitionen wird jetzt die JSON-Ressource geladen und in das FasterWhisperModelsResponse gewrappt.
         ObjectMapper mapper = new ObjectMapper();
         try (InputStream is = getClass().getResourceAsStream("/fasterwhispermodels.json")) {
             FasterWhisperModelsResponse response = mapper.readValue(is, FasterWhisperModelsResponse.class);
-            // Erzeuge ein Mapping von Modell-ID zu Liste der Sprachen.
             fastModelLanguages = response.getData()
                     .stream()
                     .collect(Collectors.toMap(
@@ -100,8 +99,9 @@ public class SettingsForm extends JPanel {
             throw new RuntimeException("Failed to load fasterwhispermodels.json", e);
         }
 
-        // Main content panel using GridBagLayout
         JPanel contentPanel = new JPanel(new GridBagLayout());
+        setBorder(BorderFactory.createEmptyBorder(60, 20, 10, 10));
+
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
         gbc.fill = GridBagConstraints.HORIZONTAL;
@@ -238,6 +238,115 @@ public class SettingsForm extends JPanel {
         gbc.anchor = GridBagConstraints.WEST;
         contentPanel.add(stopSoundSwitch, gbc);
 
+        row++;
+
+        JPanel apiSettingsPanel = new JPanel(new GridBagLayout());
+        apiSettingsPanel.setBorder(BorderFactory.createTitledBorder("API Settings"));
+        GridBagConstraints apiGbc = new GridBagConstraints();
+        apiGbc.insets = new Insets(5, 5, 5, 5);
+        apiGbc.fill = GridBagConstraints.HORIZONTAL;
+        int apiRow = 0;
+
+// ----- OpenAI API Key -----
+        apiGbc.gridx = 0;
+        apiGbc.gridy = apiRow;
+        apiGbc.gridwidth = 1;
+        apiGbc.weightx = 0;
+        apiGbc.anchor = GridBagConstraints.EAST;
+        apiSettingsPanel.add(new JLabel("OpenAI API Key:"), apiGbc);
+        openaiApiKeyField = new JTextField(20);
+        apiGbc.gridx = 1;
+        apiGbc.gridy = apiRow;
+        apiGbc.gridwidth = 2;
+        apiGbc.weightx = 1.0;
+        apiGbc.anchor = GridBagConstraints.WEST;
+        apiSettingsPanel.add(openaiApiKeyField, apiGbc);
+
+        apiRow++;
+// ----- Separator between OpenAI and Grok -----
+        JSeparator grokSeperator = new JSeparator();
+        grokSeperator.setForeground(Color.GRAY);
+        grokSeperator.setMinimumSize(new Dimension(0, 2));
+
+        apiGbc.gridx = 0;
+        apiGbc.gridy = apiRow;
+        apiGbc.gridwidth = 3;
+        apiGbc.fill = GridBagConstraints.HORIZONTAL;
+        apiSettingsPanel.add(grokSeperator, apiGbc);
+        apiGbc.fill = GridBagConstraints.HORIZONTAL; // reset fill
+        apiRow++;
+
+// ----- Grok API Key -----
+        apiGbc.gridx = 0;
+        apiGbc.gridy = apiRow;
+        apiGbc.gridwidth = 1;
+        apiGbc.weightx = 0;
+        apiGbc.anchor = GridBagConstraints.EAST;
+        apiSettingsPanel.add(new JLabel("Grok API Key:"), apiGbc);
+        grokApiKeyField = new JTextField(20);
+        apiGbc.gridx = 1;
+        apiGbc.gridy = apiRow;
+        apiGbc.gridwidth = 2;
+        apiGbc.weightx = 1.0;
+        apiGbc.anchor = GridBagConstraints.WEST;
+        apiSettingsPanel.add(grokApiKeyField, apiGbc);
+
+        apiRow++;
+
+        JSeparator openWebUISeperator = new JSeparator();
+        openWebUISeperator.setForeground(Color.GRAY);
+        openWebUISeperator.setMinimumSize(new Dimension(0, 2));
+
+
+        apiGbc.gridx = 0;
+        apiGbc.gridy = apiRow;
+        apiGbc.gridwidth = 3;
+        apiGbc.fill = GridBagConstraints.HORIZONTAL;
+        apiSettingsPanel.add(openWebUISeperator, apiGbc);
+        apiGbc.fill = GridBagConstraints.HORIZONTAL;
+        apiRow++;
+
+// ----- OpenWebUI API Key -----
+        apiGbc.gridx = 0;
+        apiGbc.gridy = apiRow;
+        apiGbc.gridwidth = 1;
+        apiGbc.weightx = 0;
+        apiGbc.anchor = GridBagConstraints.EAST;
+        apiSettingsPanel.add(new JLabel("OpenWebUI API Key:"), apiGbc);
+        openwebUIApiKeyField = new JTextField(20);
+        apiGbc.gridx = 1;
+        apiGbc.gridy = apiRow;
+        apiGbc.gridwidth = 2;
+        apiGbc.weightx = 1.0;
+        apiGbc.anchor = GridBagConstraints.WEST;
+        apiSettingsPanel.add(openwebUIApiKeyField, apiGbc);
+
+        apiRow++;
+
+// ----- OpenWebUI Server URL -----
+        apiGbc.gridx = 0;
+        apiGbc.gridy = apiRow;
+        apiGbc.gridwidth = 1;
+        apiGbc.weightx = 0;
+        apiGbc.anchor = GridBagConstraints.EAST;
+        apiSettingsPanel.add(new JLabel("OpenWebUI Server URL:"), apiGbc);
+        openwebUIApiURLField = new JTextField(20);
+        apiGbc.gridx = 1;
+        apiGbc.gridy = apiRow;
+        apiGbc.gridwidth = 2;
+        apiGbc.weightx = 1.0;
+        apiGbc.anchor = GridBagConstraints.WEST;
+        apiSettingsPanel.add(openwebUIApiURLField, apiGbc);
+
+// Add the API Settings panel to the content panel
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        gbc.gridwidth = 4;
+        gbc.weightx = 1.0;
+        contentPanel.add(apiSettingsPanel, gbc);
+
+        row++;
+
         // ===== New Section: Whispering Server Selection and Configuration =====
         // Row: Whisper Server drop-down selection
         row++;
@@ -248,7 +357,7 @@ public class SettingsForm extends JPanel {
         gbc.weightx = 0;
         gbc.anchor = GridBagConstraints.EAST;
         contentPanel.add(whisperServerLabel, gbc);
-        String[] whisperServers = {SERVER_OPENAI, SERVER_FASTER_WHISPER}; // TODO: Add GROQ
+        String[] whisperServers = {SERVER_OPENAI, SERVER_FASTER_WHISPER, OPEN_WEB_UI}; // TODO: Add GROQ
         whisperServerComboBox = new JComboBox<>(whisperServers);
         gbc.gridx = 1;
         gbc.gridy = row;
@@ -375,18 +484,27 @@ public class SettingsForm extends JPanel {
         openaiGbc.gridwidth = 1;
         openaiGbc.weightx = 0;
         openaiGbc.anchor = GridBagConstraints.EAST;
-        openaiPanel.add(new JLabel("OpenAI Whisper API Key:"), openaiGbc);
-        openaiApiKeyField = new JTextField(20);
-        openaiGbc.gridx = 1;
-        openaiGbc.gridy = openaiRow;
-        openaiGbc.gridwidth = 2;
-        openaiGbc.weightx = 1.0;
-        openaiGbc.anchor = GridBagConstraints.WEST;
-        openaiPanel.add(openaiApiKeyField, openaiGbc);
+        JLabel noSettingsLabel = new JLabel("No configuration required at this time :-)");
+        openaiPanel.add(noSettingsLabel, openaiGbc);
+
+        // ----- Initialize Open WebUI Panel -----
+        openWebUIPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints openWebUIGbc = new GridBagConstraints();
+        openWebUIGbc.insets = new Insets(5, 5, 5, 5);
+        openWebUIGbc.fill = GridBagConstraints.HORIZONTAL;
+        int openWebUIGbcRow = 0;
+        openWebUIGbc.gridx = 0;
+        openWebUIGbc.gridy = openWebUIGbcRow;
+        openWebUIGbc.gridwidth = 1;
+        openWebUIGbc.weightx = 0;
+        openWebUIGbc.anchor = GridBagConstraints.EAST;
+        JLabel openWebUInoSettingsLabel = new JLabel("No configuration required at this time :-)");
+        openWebUIPanel.add(openWebUInoSettingsLabel, openaiGbc);
 
         // Add sub-panels to the card layout panel
         whisperSettingsPanel.add(openaiPanel, SERVER_OPENAI);
         whisperSettingsPanel.add(fasterWhispererPanel, SERVER_FASTER_WHISPER);
+        whisperSettingsPanel.add(openWebUIPanel, OPEN_WEB_UI);
         whisperSettingsPanel.add(groqPanel, SERVER_GROQ);
 
         gbc.gridx = 0;
@@ -441,17 +559,14 @@ public class SettingsForm extends JPanel {
     private void updateFasterWhisperLanguages() {
         String selectedModel = (String) fasterWhisperModelComboBox.getSelectedItem();
         List<String> languages = fastModelLanguages.getOrDefault(selectedModel, Arrays.asList(""));
-        // Merke bereits ausgewählte Sprache
         String previouslySelected = (String) fasterWhisperLanguageComboBox.getSelectedItem();
         fasterWhisperLanguageComboBox.removeAllItems();
         for (String lang : languages) {
             fasterWhisperLanguageComboBox.addItem(lang);
         }
-        // Versuche zuvor ausgewählte Sprache wieder auszuwählen
         if (previouslySelected != null && languages.contains(previouslySelected)) {
             fasterWhisperLanguageComboBox.setSelectedItem(previouslySelected);
         } else {
-            // Standard: leer auswählen
             fasterWhisperLanguageComboBox.setSelectedItem("");
         }
     }
@@ -642,9 +757,16 @@ public class SettingsForm extends JPanel {
                     .collect(Collectors.toList());
             keySequenceTextField.setKeysDisplayed(sequenceSet);
         }
-        // OpenAI API Key setting
+
         String apiKey = configManager.getProperty("apiKey");
         openaiApiKeyField.setText(apiKey != null ? apiKey : "");
+        String grokApiKey = configManager.getProperty("grokApiKey");
+        grokApiKeyField.setText(apiKey != null ? grokApiKey : "");
+        String openwebUIApiKey = configManager.getOpenWebUIApiKey();
+        openwebUIApiKeyField.setText(openwebUIApiKey != null ? openwebUIApiKey : "");
+        String openwebUIApiURL = configManager.getOpenWebUIServerUrl();
+        openwebUIApiURLField.setText(openwebUIApiURL != null ? openwebUIApiURL : "");
+
         // Microphone and bitrate settings
         String selectedMicrophone = configManager.getProperty("selectedMicrophone");
         microphoneComboBox.setSelectedItem(selectedMicrophone);
@@ -696,6 +818,15 @@ public class SettingsForm extends JPanel {
         // Save OpenAI Whisper API Key
         String openaiKey = openaiApiKeyField.getText();
         configManager.setProperty("apiKey", openaiKey);
+
+        String grokApiKey = grokApiKeyField.getText();
+        configManager.setProperty("grokApiKey", grokApiKey);
+
+        String openwebUIApiKey = openwebUIApiKeyField.getText();
+        configManager.setOpenWebUIApiKey(openwebUIApiKey);
+
+        String openwebUIApiURL = openwebUIApiURLField.getText();
+        configManager.setOpenWebUIServerUrl(openwebUIApiURL);
         // Save microphone and bitrate settings
         configManager.setProperty("selectedMicrophone", (String) microphoneComboBox.getSelectedItem());
         int selectedBitrate = (Integer) bitrateComboBox.getSelectedItem();

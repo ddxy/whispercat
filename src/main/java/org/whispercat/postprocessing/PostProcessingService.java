@@ -1,6 +1,7 @@
 package org.whispercat.postprocessing;
 
 import org.whispercat.ConfigManager;
+import org.whispercat.postprocessing.clients.OpenWebUIProcessClient;
 import org.whispercat.recording.OpenAIClient;
 
 import java.io.IOException;
@@ -11,6 +12,7 @@ public class PostProcessingService {
 
     // OpenAIClient instance used to make synchronous calls to the API.
     private OpenAIClient openAIClient;
+    private OpenWebUIProcessClient openWebUIClient;
 
     /**
      * Constructs the PostProcessingService with the given ConfigManager.
@@ -20,6 +22,7 @@ public class PostProcessingService {
      */
     public PostProcessingService(ConfigManager configManager) {
         this.openAIClient = new OpenAIClient(configManager);
+        this.openWebUIClient = new OpenWebUIProcessClient(configManager);
     }
 
     /**
@@ -67,8 +70,15 @@ public class PostProcessingService {
         logger.info("Post-processing input: " + fullUserPrompt);
         try {
             // Synchronous call using the provided OpenAIClient.
-            String result = openAIClient.processText(step.systemPrompt, fullUserPrompt, step.model);
-            return result;
+            if(step.provider.equalsIgnoreCase("OpenAI")){
+                logger.info("Processing using OpenAI API.");
+                String result = openAIClient.processText(step.systemPrompt, fullUserPrompt, step.model);
+                return result;
+            } else if(step.provider.equalsIgnoreCase("Open WebUI")){
+                logger.info("Processing using Open WebUI.");
+                String result = openWebUIClient.processText(step.systemPrompt, fullUserPrompt, step.model);
+                return result;
+            }
         } catch (IOException e) {
             e.printStackTrace();
         }

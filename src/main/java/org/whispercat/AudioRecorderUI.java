@@ -48,7 +48,7 @@ public class AudioRecorderUI extends javax.swing.JFrame {
         pack();
 
 
-        setSize(new Dimension(1366, 768));
+        setSize(new Dimension(1366, 850));
         setLocationRelativeTo(null);
         mainForm = new MainForm();
         setContentPane(mainForm);

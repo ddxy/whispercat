@@ -1,4 +1,4 @@
-package org.whispercat.recording;
+package org.whispercat.recording.clients;
 
 import java.util.List;
 

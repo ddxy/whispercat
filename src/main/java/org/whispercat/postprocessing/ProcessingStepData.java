@@ -10,6 +10,10 @@ public class ProcessingStepData {
     public String model;
     public String systemPrompt;
     public String userPrompt;
+
+    // For Text Replacement:
     public String textToReplace;
     public String replacementText;
+
+    // TODO: Text to Speech
 }

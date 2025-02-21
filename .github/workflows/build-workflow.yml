@@ -112,7 +112,7 @@ jobs:
       - name: Create DEB Package Structure
         run: |
           package_name="WhisperCat"
-          app_version="1.3.0"
+          app_version="1.4.0"
           mkdir -p deb_package/DEBIAN
           mkdir -p deb_package/usr/bin
           mkdir -p deb_package/usr/share/$package_name
@@ -120,7 +120,7 @@ jobs:
       - name: Create Control File
         run: |
           package_name="WhisperCat"
-          app_version="1.3.0"
+          app_version="1.4.0"
           echo "Package: $package_name
           Priority: optional
           Section: utils
@@ -145,7 +145,7 @@ jobs:
         run: |
           mkdir -p deb_package/usr/share/applications
           echo '[Desktop Entry]
-          Version=1.3.0
+          Version=1.4.0
           Type=Application
           Name=WhisperCat
           Comment=Java based audio recorder
@@ -227,7 +227,7 @@ jobs:
         shell: powershell
         run: |
           # Parameter für jpackage definieren
-          $appVersion = '1.3.0' 
+          $appVersion = '1.4.0' 
           $packageName = 'WhisperCat'
           $mainJar = 'target\Audiorecorder-1.0-SNAPSHOT-jar-with-dependencies.jar'
           $mainClass = 'org.whispercat.AudioRecorderUI'
@@ -283,7 +283,7 @@ jobs:
           jpackage \
             --type dmg \
             --name WhisperCat \
-            --app-version 1.3.0 \
+            --app-version 1.4.0 \
             --icon whispercat.icns \
             --input target \
             --main-jar Audiorecorder-1.0-SNAPSHOT-jar-with-dependencies.jar \
@@ -293,4 +293,4 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: WhisperCat.dmg
-          path: WhisperCat-1.3.0.dmg
+          path: WhisperCat-1.4.0.dmg
