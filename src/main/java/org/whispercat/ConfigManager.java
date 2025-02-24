@@ -283,4 +283,8 @@ public class ConfigManager {
     public void setOpenWebUIServerUrl(String url) {
         properties.setProperty("openWebUIServerUrl", url);
     }
+
+    public String getElevenLabsApiKey() {
+        return properties.getProperty("elevenLabsApiKey", "");
+    }
 }

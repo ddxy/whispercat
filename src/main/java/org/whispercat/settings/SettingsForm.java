@@ -62,6 +62,9 @@ public class SettingsForm extends JPanel {
     private JTextField openwebUIApiKeyField;
     private JTextField openwebUIApiURLField;
 
+    // Fields for ElevenLabs Synthesizer settings
+    private JTextField elevenLabsApiKeyField;
+
     private static final String SERVER_FASTER_WHISPER = "Faster-Whisper";
     private static final String OPEN_WEB_UI = "Open WebUI";
     private static final String SERVER_GROQ = "Groq";
@@ -526,6 +529,38 @@ public class SettingsForm extends JPanel {
         CardLayout cl = (CardLayout) (whisperSettingsPanel.getLayout());
         cl.show(whisperSettingsPanel, (String) whisperServerComboBox.getSelectedItem());
 
+
+        // ===== New Section: Synthesizers Settings =====
+        JPanel synthesizersPanel = new JPanel(new GridBagLayout());
+        synthesizersPanel.setBorder(BorderFactory.createTitledBorder("Synthesizers Settings"));
+        GridBagConstraints synthGbc = new GridBagConstraints();
+        synthGbc.insets = new Insets(5, 5, 5, 5);
+        synthGbc.fill = GridBagConstraints.HORIZONTAL;
+        int synthRow = 0;
+// 11labs API Key field
+        synthGbc.gridx = 0;
+        synthGbc.gridy = synthRow;
+        synthGbc.gridwidth = 1;
+        synthGbc.weightx = 0;
+        synthGbc.anchor = GridBagConstraints.EAST;
+        synthesizersPanel.add(new JLabel("11labs API Key:"), synthGbc);
+        elevenLabsApiKeyField = new JTextField(20);
+        synthGbc.gridx = 1;
+        synthGbc.gridy = synthRow;
+        synthGbc.gridwidth = 2;
+        synthGbc.weightx = 1.0;
+        synthGbc.anchor = GridBagConstraints.WEST;
+        synthesizersPanel.add(elevenLabsApiKeyField, synthGbc);
+        // Add the Synthesizers Settings panel to the main content panel
+        row++;  // Increment the row counter for the contentPanel
+        gbc.gridx = 0;
+        gbc.gridy = row;
+        gbc.gridwidth = 4;
+        gbc.weightx = 1.0;
+        contentPanel.add(synthesizersPanel, gbc);
+
+
+
         // Row: Save Button
         row++;
         saveButton = new JButton("Save");
@@ -803,6 +838,10 @@ public class SettingsForm extends JPanel {
         if (groqModel != null) {
             groqModelComboBox.setSelectedItem(groqModel);
         }
+
+        // Load ElevenLabs Synthesizer settings
+        String elevenLabsApiKey = configManager.getProperty("elevenLabsApiKey");
+        elevenLabsApiKeyField.setText(elevenLabsApiKey != null ? elevenLabsApiKey : "");
     }
 
     private void saveSettings(ActionEvent e) {
@@ -847,6 +886,12 @@ public class SettingsForm extends JPanel {
         configManager.setProperty("groqApiKey", groqApiKey);
         String groqModel = (String) groqModelComboBox.getSelectedItem();
         configManager.setProperty("groqModel", groqModel);
+
+        // Save ElevenLabs Synthesizer settings
+        String elevenLabsApiKey = elevenLabsApiKeyField.getText();
+        configManager.setProperty("elevenLabsApiKey", elevenLabsApiKey);
+
+
         configManager.saveConfig();
         Notificationmanager.getInstance().showNotification(ToastNotification.Type.SUCCESS,
                 "Settings saved.");

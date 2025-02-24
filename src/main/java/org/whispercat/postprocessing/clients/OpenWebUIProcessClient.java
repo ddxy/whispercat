@@ -15,7 +15,11 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.ssl.SSLContextBuilder;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.whispercat.ConfigManager;
+import org.whispercat.Notificationmanager;
+import org.whispercat.ToastNotification;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -28,6 +32,7 @@ import javax.net.ssl.SSLContext;
  * This class now ignores certificate validation.
  */
 public class OpenWebUIProcessClient {
+    private static final Logger logger = LogManager.getLogger(OpenWebUIProcessClient.class);
 
     private final ConfigManager configManager;
 
@@ -125,6 +130,10 @@ public class OpenWebUIProcessClient {
                     JsonNode messageNode = choices.get(0).path("message");
                     return messageNode.path("content").asText();
                 }
+            } catch (IOException e) {
+                Notificationmanager.getInstance().showNotification(ToastNotification.Type.ERROR, "Error processing text: " + e.getMessage());
+                logger.error("Error processing text: ", e);
+
             }
         }
         return "";

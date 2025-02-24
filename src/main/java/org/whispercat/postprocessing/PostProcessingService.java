@@ -43,7 +43,10 @@ public class PostProcessingService {
             } else if ("Text Replacement".equalsIgnoreCase(step.type)) {
                 // Replace text based on configuration.
                 processedText = processedText.replace(step.textToReplace, step.replacementText);
-            } else {
+            } else if ("ElevenLabs Voice".equalsIgnoreCase(step.type)) {
+                logger.error("Unknown post-processing step type: " + step.type);
+            }
+            else {
                 // Log unknown step type.
                 System.out.println("Unknown post-processing step type: " + step.type);
             }
