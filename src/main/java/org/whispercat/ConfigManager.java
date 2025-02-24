@@ -61,6 +61,8 @@ public class ConfigManager {
         String configDirPath;
         if (osName.contains("win")) {
             configDirPath = System.getenv("APPDATA") + File.separator + "WhisperCat";
+        } else if (osName.contains("mac")) {
+            configDirPath = System.getProperty("user.home") + File.separator + "Library" + File.separator + "Application Support" + File.separator + "WhisperCat";
         } else {
             configDirPath = System.getProperty("user.home") + File.separator + "WhisperCat" + File.separator + ".config";
             logger.info("Config Path is:" + configDirPath);
@@ -85,6 +87,8 @@ public class ConfigManager {
         String configDir;
         if (System.getProperty("os.name").toLowerCase().contains("win")) {
             configDir = System.getenv("APPDATA") + File.separator + "WhisperCat";
+        } else if (System.getProperty("os.name").toLowerCase().contains("mac")) {
+            configDir = System.getProperty("user.home") + File.separator + "Library" + File.separator + "Application Support" + File.separator + "WhisperCat";
         } else {
             configDir = userHome + File.separator + "WhisperCat" + File.separator + ".config";
         }

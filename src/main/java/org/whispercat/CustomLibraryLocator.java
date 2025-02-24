@@ -36,6 +36,8 @@ public class CustomLibraryLocator implements NativeLibraryLocator {
 
         if (System.getProperty("os.name").toLowerCase().contains("win")) {
             configDir = System.getenv("APPDATA") + "/WhisperCat";
+        } else if (System.getProperty("os.name").toLowerCase().contains("mac")) {
+            configDir = System.getProperty("user.home") + "/Library/Application Support/WhisperCat";
         } else {
             configDir = userHome + "/WhisperCat/.config";
         }

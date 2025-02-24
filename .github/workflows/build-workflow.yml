@@ -262,6 +262,111 @@ jobs:
           name: WhisperCat-Installer
           path: jpackage_output\*
 
+  build-windows-with-jre:
+    name: Build and Package for Windows with JRE included
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+      - name: Verify Java Version for Build
+        run: java -version
+      - name: Build with Maven
+        run: mvn clean package
+      - name: Download and Extract JRE
+        run: |
+          Invoke-WebRequest -Uri 'https://cdn.azul.com/zulu/bin/zulu17.44.15-ca-jre17.0.8-win_x64.zip' -OutFile jre.zip
+          Expand-Archive -LiteralPath jre.zip -DestinationPath temp_jre
+          $extractedFolder = Get-ChildItem -Path temp_jre | Where-Object { $_.PSIsContainer } | Select-Object -First 1
+          if (-Not (Test-Path -Path jre)) {
+              New-Item -ItemType Directory -Path jre
+          }
+          Move-Item -Path 'temp_jre\*' -Destination 'jre' -Force
+          Remove-Item temp_jre -Force -Recurse
+          Remove-Item jre.zip -Force
+      - name: Download Launch4j
+        run: |
+          curl -L -o launch4j.zip 'https://sourceforge.net/projects/launch4j/files/launch4j-3/3.14/launch4j-3.14-win32.zip/download'
+          Expand-Archive -LiteralPath launch4j.zip -DestinationPath .
+      - name: Copy JAR file for Launch4j
+        run: |
+          New-Item -ItemType Directory -Force -Path launch4j\target
+          Copy-Item -Path target\Audiorecorder-1.0-SNAPSHOT-jar-with-dependencies.jar -Destination launch4j\target\Audiorecorder-1.0-SNAPSHOT-jar-with-dependencies.jar
+      - name: Move JRE into launch4j directory
+        run: |
+          Move-Item -Path jre -Destination launch4j\jre
+      - name: Copy Icon File for Launch4j
+        run: |
+          Copy-Item -Path whispercat.ico -Destination launch4j\whispercat-icon.ico
+      - name: Create Launch4j Config File
+        run: |
+          $jarPath = 'target\Audiorecorder-1.0-SNAPSHOT-jar-with-dependencies.jar'
+          $outFile = 'WhisperCat-with-jre.exe'
+          $iconPath = 'whispercat-icon.ico'
+          $mainClass = 'org.whispercat.AudioRecorderUI'
+          $javaPath = 'jre'
+          Write-Host "Using bundled JRE at: $javaPath"
+          $xmlContent = @"
+          <launch4jConfig>
+          <dontWrapJar>false</dontWrapJar>
+          <headerType>gui</headerType>
+          <jar>$jarPath</jar>
+          <outfile>$outFile</outfile>
+          <errTitle></errTitle>
+          <cmdLine></cmdLine>
+          <chdir>.</chdir>
+          <priority>normal</priority>
+          <stayAlive>false</stayAlive>
+          <manifest></manifest>
+          <icon>$iconPath</icon>
+          <classPath>
+          <mainClass>$mainClass</mainClass>
+          </classPath>
+          <jre>
+          <path>$javaPath</path>
+          <bundledJre64Bit>true</bundledJre64Bit>
+          <minVersion>11.0.0</minVersion>
+          <maxVersion></maxVersion>
+          <jdkPreference>preferJre</jdkPreference>
+          <runtimeBits>64</runtimeBits>
+          </jre>
+          </launch4jConfig>
+          "@
+          $xmlContent | Out-File -FilePath launch4j\launch4j-config-with-jre.xml -Encoding UTF8
+      - name: Run Launch4j via Java
+        run: |
+          java -jar launch4j/launch4j.jar launch4j\launch4j-config-with-jre.xml
+      - name: Prepare Distribution Package
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          Copy-Item -Path launch4j\WhisperCat-with-jre.exe -Destination dist\
+          Copy-Item -Path launch4j\jre -Destination dist\jre -Recurse
+      - name: Copy JRE contents to dist\jre
+        run: |
+          $jrePath = 'dist\jre'
+          $zuluDir = Get-ChildItem -Path $jrePath -Directory | Where-Object { $_.Name -like 'zulu*' } | Select-Object -First 1
+          if ($zuluDir) {
+              # Verschieben des gesamten Inhalts von dist\jre\zulu* nach dist\jre\
+              Move-Item -Path "$($zuluDir.FullName)\*" -Destination $jrePath -Force
+              Remove-Item -Path $zuluDir.FullName -Recurse -Force
+              Write-Host "Inhalte aus $($zuluDir.Name) wurden nach $jrePath verschoben."
+          } else {
+              Write-Host "Kein zulu*-Verzeichnis in $jrePath gefunden."
+          }
+      - name: List Directory Contents
+        run: |
+          Write-Host "Current Directory:"
+          Get-ChildItem -Path dist\jre
+      - name: Upload ZIP Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WhisperCat-with-jre-non-installer.zip
+          path: dist\*
+
   build-macos:
     name: Build macOS Installer (DMG)
     runs-on: macos-latest
