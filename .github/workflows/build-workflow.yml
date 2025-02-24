@@ -364,7 +364,7 @@ jobs:
       - name: Upload ZIP Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WhisperCat-with-jre-non-installer.zip
+          name: WhisperCat-Windows-with-jre-non-installer.zip
           path: dist\*
 
   build-macos:
