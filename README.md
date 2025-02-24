@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img alt="Latest Version" src="https://img.shields.io/badge/Latest%20Version-v1.3.0-brightgreen?style=flat-square&logo=github&logoColor=white" />
+  <img alt="Latest Version" src="https://img.shields.io/badge/Latest%20Version-v1.4.0-brightgreen?style=flat-square&logo=github&logoColor=white" />
   <a href="LICENSE" target="https://opensource.org/license/mit">
     <img alt="MIT License" src="https://img.shields.io/badge/License-MIT-blue?style=flat-square&logo=github&logoColor=white" />
   </a>
@@ -19,9 +19,10 @@ WhisperCat is your personal companion for capturing audio, transcribing it, and 
 ---
 
 ## Features
+- **v1.4.0: Open Web UI Support**:  
+  WhisperCat now supports transcription via the Open Web UI, a flexible and user-friendly web interface that provides powerful transcription services. This integration allows you to process your recordings using modern, cloud-based technologies and even leverage free, open-source models for transcription. For more details about configuration and available models, please visit [openwebui.com](https://openwebui.com/).
 - **v1.3.0: FasterWhisper Server Support**:  
   Now WhisperCat supports transcription via FasterWhisper Server. Please refer to the [installation instructions](https://speaches.ai/installation/#__tabbed_1_3) for setting up the FasterWhisper Server. Note that the previous GitHub repository for FasterWhisper is outdated. The new repository is available at [github.com/speaches-ai/speaches](https://github.com/speaches-ai/speaches/).
-
 - **Record Audio**: Capture sound using your chosen microphone.
 - **Automated Transcription**: Process and transcribe your recordings with OpenAI Whisper API.
 - **Post-Processing**: Enhance the generated speech-to-text output by:
@@ -65,7 +66,7 @@ Here's what WhisperCat looks like in action:
 
 Here are some planned ideas and features for future releases:
 - **FasterWhisper Server Enhancements**:Now that FasterWhisper Server support is integrated, future updates might include advanced configuration options and performance tweaks.
-- **Faster Whisperer**: Add support for Faster Whisperer Server.
+- **Add Post Processing Text to Audio**: Add the ability to add post processing text to audio, e.g. via ElevenLabs, Amazon Polly and more.
 - **Groq Whisperer**: Add support for Groq Whisperer Server.
 - **Groq and Anthropic Post-Processing**: Add support for Groq and Anthropic Post-Processing.
 - **macOS Support**: While full macOS support is planned, an **experimental version** is already available. Check it out here: [Experimental macOS Build](https://github.com/ddxy/whispercat/releases/tag/v1.0.0). Feedback is welcome!
@@ -76,7 +77,6 @@ Here are some planned ideas and features for future releases:
 - **Custom Shortcuts**: Add the ability to configure custom hotkeys for various actions.
 - **Audio Playback**: Integrate audio playback functionality for recorded files directly within the audioRecorderUI.
 - **Continuous Recording Mode**: Enable a mode for long-term recording sessions with automatic splitting of large files.
-- **Much more**: Maybe another way to package the audioRecorderUI
 
 Feel free to contribute any of these features or suggest new ones in the issues section!
 
