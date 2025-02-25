@@ -285,7 +285,7 @@ public class RecorderForm extends javax.swing.JPanel {
                         .addContainerGap()
                         .addComponent(centerPanel)
                         .addComponent(postProcessingContainerPanel)
-                        .addContainerGap(237, Short.MAX_VALUE)
+                        .addContainerGap()
         );
 
     }

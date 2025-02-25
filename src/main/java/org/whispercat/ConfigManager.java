@@ -135,6 +135,16 @@ public class ConfigManager {
     }
 
 
+    public void saveProcessingDataList(List<PostProcessingData> dataList) {
+        Gson gson = new Gson();
+        JsonArray array = new JsonArray();
+        for (PostProcessingData data : dataList) {
+            array.add(JsonParser.parseString(gson.toJson(data)));
+        }
+        properties.setProperty("postProcessingData", gson.toJson(array));
+        saveConfig();
+    }
+    
     public void savePostProcessingData(PostProcessingData data) {
         Gson gson = new Gson();
         String json = gson.toJson(data);

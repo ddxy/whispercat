@@ -10,6 +10,8 @@ import org.whispercat.recording.RecorderForm;
 import javax.swing.*;
 import javax.swing.border.Border;
 import java.awt.*;
+import java.awt.datatransfer.DataFlavor;
+import java.awt.datatransfer.Transferable;
 import java.awt.event.*;
 import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
@@ -98,6 +100,17 @@ public class PostProcessingForm extends JPanel {
 
         // Container for the Processing Steps.
         stepsContainer = new JPanel();
+
+        stepsContainer.setTransferHandler(new PanelReorderTransferHandler());
+        stepsContainer.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mousePressed(MouseEvent e) {
+                Component comp = stepsContainer.getComponentAt(e.getPoint());
+                if (comp instanceof ProcessingStepPanel) {
+                    stepsContainer.getTransferHandler().exportAsDrag(stepsContainer, e, TransferHandler.MOVE);
+                }
+            }
+        });
         stepsContainer.setBorder(BorderFactory.createEmptyBorder());
         stepsContainer.setLayout(new BoxLayout(stepsContainer, BoxLayout.Y_AXIS));
         scrollPane = new JScrollPane(stepsContainer);
@@ -315,6 +328,78 @@ public class PostProcessingForm extends JPanel {
         }
         data.uuid = currentUUID;
         return data;
+    }
+
+    private static class PanelTransferable implements Transferable {
+        public static final DataFlavor PANEL_FLAVOR = new DataFlavor(DataFlavor.javaJVMLocalObjectMimeType + ";class=javax.swing.JPanel", "JPanel");
+        private final JPanel panel;
+        public PanelTransferable(JPanel panel) {
+            this.panel = panel;
+        }
+        @Override
+        public DataFlavor[] getTransferDataFlavors() {
+            return new DataFlavor[] { PANEL_FLAVOR };
+        }
+        @Override
+        public boolean isDataFlavorSupported(DataFlavor flavor) {
+            return flavor.equals(PANEL_FLAVOR);
+        }
+        @Override
+        public Object getTransferData(DataFlavor flavor) {
+            if (flavor.equals(PANEL_FLAVOR)) {
+                return panel;
+            }
+            return null;
+        }
+    }
+
+    private class PanelReorderTransferHandler extends TransferHandler {
+        private JPanel draggedPanel;
+        @Override
+        protected Transferable createTransferable(JComponent c) {
+            for (Component comp : stepsContainer.getComponents()) {
+                if (comp.getBounds().contains(stepsContainer.getMousePosition())) {
+                    draggedPanel = (JPanel) comp;
+                    break;
+                }
+            }
+            return new PanelTransferable(draggedPanel);
+        }
+        @Override
+        public int getSourceActions(JComponent c) {
+            return MOVE;
+        }
+        @Override
+        public boolean canImport(TransferHandler.TransferSupport support) {
+            return support.isDataFlavorSupported(PanelTransferable.PANEL_FLAVOR);
+        }
+        @Override
+        public boolean importData(TransferHandler.TransferSupport support) {
+            if (!canImport(support)) return false;
+            try {
+                JPanel droppedPanel = (JPanel) support.getTransferable().getTransferData(PanelTransferable.PANEL_FLAVOR);
+                Point dropPoint = support.getDropLocation().getDropPoint();
+                int index = -1;
+                for (int i = 0; i < stepsContainer.getComponentCount(); i++) {
+                    Component comp = stepsContainer.getComponent(i);
+                    if (dropPoint.getY() < comp.getBounds().getCenterY()) {
+                        index = i;
+                        break;
+                    }
+                }
+                if (index == -1) {
+                    index = stepsContainer.getComponentCount();
+                }
+                stepsContainer.remove(droppedPanel);
+                stepsContainer.add(droppedPanel, index);
+                stepsContainer.revalidate();
+                stepsContainer.repaint();
+                return true;
+            } catch (Exception e) {
+                logger.error("Error during panel reorder: ", e);
+            }
+            return false;
+        }
     }
 
     /**
@@ -901,6 +986,7 @@ public class PostProcessingForm extends JPanel {
             }
         }
     }
+
 
     public static void main(String[] args) {
         SwingUtilities.invokeLater(() -> {

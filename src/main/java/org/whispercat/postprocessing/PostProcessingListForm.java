@@ -3,22 +3,15 @@ package org.whispercat.postprocessing;
 import com.formdev.flatlaf.extras.FlatSVGIcon;
 import org.whispercat.ConfigManager;
 import org.whispercat.MainForm;
+import org.whispercat.Notificationmanager;
+import org.whispercat.ToastNotification;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.datatransfer.*;
-import java.awt.dnd.DnDConstants;
-import java.awt.event.ActionEvent;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
+import java.awt.event.*;
 import java.util.List;
 
-/**
- * A panel that displays all saved Post Processing configurations.
- * Each item is shown inside a bordered panel with its title and description,
- * plus two buttons (edit and delete) on the right. The list is built from the
- * ConfigManager's JSON array.
- */
 public class PostProcessingListForm extends JPanel {
     private final ConfigManager configManager;
     private final MainForm mainForm;
@@ -30,15 +23,12 @@ public class PostProcessingListForm extends JPanel {
         this.mainForm = mainForm;
         setLayout(new BorderLayout());
         setBorder(BorderFactory.createEmptyBorder(60, 20, 10, 10));
-
         JLabel headerLabel = new JLabel("All Post Processings");
         headerLabel.setFont(headerLabel.getFont().deriveFont(Font.PLAIN, 18f));
         headerLabel.setHorizontalAlignment(SwingConstants.LEFT);
         JPanel headerPanel = new JPanel(new BorderLayout());
         headerPanel.add(headerLabel, BorderLayout.CENTER);
         headerPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 0));
-        // add(headerPanel, BorderLayout.NORTH);
-
         listContainer = new JPanel();
         listContainer.setLayout(new BoxLayout(listContainer, BoxLayout.Y_AXIS));
         listContainer.setTransferHandler(new PanelReorderTransferHandler());
@@ -51,7 +41,6 @@ public class PostProcessingListForm extends JPanel {
                 }
             }
         });
-
         JScrollPane scrollPane = new JScrollPane(listContainer);
         scrollPane.setBorder(null);
         add(scrollPane, BorderLayout.CENTER);
@@ -62,20 +51,18 @@ public class PostProcessingListForm extends JPanel {
         listContainer.removeAll();
         List<PostProcessingData> postProcessingList = configManager.getPostProcessingDataList();
         logger.info("Post Processing List: {}", postProcessingList);
-
         for (PostProcessingData data : postProcessingList) {
             String title = (data.title != null && !data.title.trim().isEmpty()) ? data.title : "No Title";
             String description = (data.description != null && !data.description.trim().isEmpty()) ? data.description : "No Description";
             JPanel itemPanel = new JPanel(new BorderLayout());
             itemPanel.setBorder(BorderFactory.createTitledBorder(title));
-
+            itemPanel.putClientProperty("postProcessingData", data);
             JPanel infoPanel = new JPanel();
             infoPanel.setLayout(new BoxLayout(infoPanel, BoxLayout.Y_AXIS));
             JLabel descriptionLabel = new JLabel("Description: " + description);
             descriptionLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
             infoPanel.add(descriptionLabel);
             itemPanel.add(infoPanel, BorderLayout.CENTER);
-
             JPanel buttonPanel = new JPanel();
             buttonPanel.setLayout(new BoxLayout(buttonPanel, BoxLayout.Y_AXIS));
             JButton editButton = new JButton();
@@ -97,7 +84,6 @@ public class PostProcessingListForm extends JPanel {
             buttonPanel.add(Box.createVerticalStrut(5));
             buttonPanel.add(deleteButton);
             itemPanel.add(buttonPanel, BorderLayout.EAST);
-
             itemPanel.setMaximumSize(new Dimension(Integer.MAX_VALUE, itemPanel.getPreferredSize().height));
             listContainer.add(itemPanel);
         }
@@ -109,33 +95,25 @@ public class PostProcessingListForm extends JPanel {
         public static final DataFlavor PANEL_FLAVOR = new DataFlavor(
                 DataFlavor.javaJVMLocalObjectMimeType + ";class=javax.swing.JPanel", "JPanel");
         private final JPanel panel;
-
         public PanelTransferable(JPanel panel) {
             this.panel = panel;
         }
-
         @Override
         public DataFlavor[] getTransferDataFlavors() {
             return new DataFlavor[] { PANEL_FLAVOR };
         }
-
         @Override
         public boolean isDataFlavorSupported(DataFlavor flavor) {
             return flavor.equals(PANEL_FLAVOR);
         }
-
         @Override
         public Object getTransferData(DataFlavor flavor) {
-            if (flavor.equals(PANEL_FLAVOR)) {
-                return panel;
-            }
-            return null;
+            return flavor.equals(PANEL_FLAVOR) ? panel : null;
         }
     }
 
     private class PanelReorderTransferHandler extends TransferHandler {
         private JPanel draggedPanel;
-
         @Override
         protected Transferable createTransferable(JComponent c) {
             for (Component comp : listContainer.getComponents()) {
@@ -146,17 +124,12 @@ public class PostProcessingListForm extends JPanel {
             }
             return new PanelTransferable(draggedPanel);
         }
-
         @Override
-        public int getSourceActions(JComponent c) {
-            return MOVE;
-        }
-
+        public int getSourceActions(JComponent c) { return MOVE; }
         @Override
         public boolean canImport(TransferHandler.TransferSupport support) {
             return support.isDataFlavorSupported(PanelTransferable.PANEL_FLAVOR);
         }
-
         @Override
         public boolean importData(TransferHandler.TransferSupport support) {
             if (!canImport(support)) return false;
@@ -178,6 +151,20 @@ public class PostProcessingListForm extends JPanel {
                 listContainer.add(droppedPanel, index);
                 listContainer.revalidate();
                 listContainer.repaint();
+
+                // Nach Reordering: Erstelle die neue Liste und speichere sie in der Config
+                java.util.List<PostProcessingData> newList = new java.util.ArrayList<>();
+                for (Component comp : listContainer.getComponents()) {
+                    if (comp instanceof JPanel) {
+                        PostProcessingData data = (PostProcessingData)((JPanel) comp).getClientProperty("postProcessingData");
+                        if (data != null) {
+                            newList.add(data);
+                        }
+                    }
+                }
+                configManager.saveProcessingDataList(newList);
+                Notificationmanager.getInstance().showNotification(ToastNotification.Type.INFO,
+                        "Post Processing order has been saved.");
                 return true;
             } catch (Exception e) {
                 logger.error("Error during panel reorder: ", e);

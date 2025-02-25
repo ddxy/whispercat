@@ -586,8 +586,8 @@ public class SettingsForm extends JPanel {
         layout.setVerticalGroup(
                 layout.createSequentialGroup()
                         .addContainerGap()
-                        .addComponent(contentPanel)
-                        .addContainerGap(237, Short.MAX_VALUE)
+                        .addComponent(contentPanel, GroupLayout.PREFERRED_SIZE, GroupLayout.PREFERRED_SIZE, GroupLayout.PREFERRED_SIZE)
+                        .addContainerGap()
         );
     }
 

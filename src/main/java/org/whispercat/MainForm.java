@@ -21,15 +21,18 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
 
-
 public class MainForm extends JLayeredPane {
-
 
     private GlobalHotkeyListener globalHotkeyListener;
     private ConfigManager configManager;
     public RecorderForm recorderForm;
     public SettingsForm settingsForm;
     private static final org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(MainForm.class);
+
+    // Declaration of components required for functionality
+    private Menu menu;
+    private JPanel panelBody;
+    private JButton menuButton;
 
     public MainForm() {
         init();
@@ -39,7 +42,6 @@ public class MainForm extends JLayeredPane {
         setBorder(new EmptyBorder(5, 5, 5, 5));
         setLayout(new MainFormLayout());
         menu = new Menu();
-
         panelBody = new JPanel(new BorderLayout());
         initMenuArrowIcon();
         menuButton.putClientProperty(FlatClientProperties.STYLE, ""
@@ -50,7 +52,6 @@ public class MainForm extends JLayeredPane {
         menuButton.addActionListener((ActionEvent e) -> {
             setMenuFull(!menu.isMenuFull());
         });
-
         menu.getHeader().addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
@@ -62,7 +63,6 @@ public class MainForm extends JLayeredPane {
         add(menuButton);
         add(menu);
         add(panelBody);
-
         configManager = new ConfigManager();
         extractNativeLibraries();
         String hotkey = configManager.getKeyCombination();
@@ -88,20 +88,16 @@ public class MainForm extends JLayeredPane {
             globalHotkeyListener.setOptionsDialogOpen(false, null, null);
             globalHotkeyListener.updateKeyCombination(configManager.getKeyCombination());
             globalHotkeyListener.updateKeySequence(configManager.getKeySequence());
-
-            // stop recording only if there is a switch from dashboard to another sidemenu
-            if( index != 0 && recorderForm != null) {
+            // Stop recording only if there is a switch from dashboard to another sidemenu
+            if (index != 0 && recorderForm != null) {
                 recorderForm.stopRecording(true);
                 recorderForm = null;
             }
-
-            if( index != 0 && settingsForm != null) {
+            if (index != 0 && settingsForm != null) {
                 settingsForm.stopAudioTest();
                 settingsForm = null;
             }
-
             if (index == 0 && recorderForm == null) {
-                this.recorderForm = new RecorderForm(configManager);
                 this.recorderForm = new RecorderForm(configManager);
                 showForm(recorderForm);
             } else if (index == 1) {
@@ -121,8 +117,8 @@ public class MainForm extends JLayeredPane {
                 if (subIndex == 2) {
                     showForm(new PostProcessingForm(configManager, null));
                 }
-            }
-            else if (index == 9) {
+            } else if (index == 9) {
+                // Additional menu items can be handled here
             } else {
                 action.cancel();
             }
@@ -145,9 +141,13 @@ public class MainForm extends JLayeredPane {
         menu.hideMenuItem();
     }
 
+    // Modified showForm method: the component is wrapped in a JScrollPane so that scrollbars appear only when needed.
     public void showForm(Component component) {
         panelBody.removeAll();
-        panelBody.add(component);
+        JScrollPane scrollPane = new JScrollPane(component,
+                ScrollPaneConstants.VERTICAL_SCROLLBAR_AS_NEEDED,
+                ScrollPaneConstants.HORIZONTAL_SCROLLBAR_AS_NEEDED);
+        panelBody.add(scrollPane);
         panelBody.repaint();
         panelBody.revalidate();
     }
@@ -156,18 +156,15 @@ public class MainForm extends JLayeredPane {
         menu.setSelectedMenu(index, subIndex);
     }
 
-    private Menu menu;
-    private JPanel panelBody;
-    private JButton menuButton;
-
     private class MainFormLayout implements LayoutManager {
-
         @Override
         public void addLayoutComponent(String name, Component comp) {
+            // No implementation needed
         }
 
         @Override
         public void removeLayoutComponent(Component comp) {
+            // No implementation needed
         }
 
         @Override
