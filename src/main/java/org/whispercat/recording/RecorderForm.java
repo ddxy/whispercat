@@ -556,23 +556,31 @@ public class RecorderForm extends javax.swing.JPanel {
                 if (enablePostProcessingCheckBox.isSelected() && postProcessingSelectComboBox.getSelectedItem() != null) {
                     PostProcessingItem selectedItem = (PostProcessingItem) postProcessingSelectComboBox.getSelectedItem();
                     if (selectedItem != null && selectedItem.uuid != null) {
-                        Optional<PostProcessingData> first = configManager.getPostProcessingDataList().stream().filter(p -> p.uuid.equals(selectedItem.uuid)).findFirst();
+                        Optional<PostProcessingData> first = configManager.getPostProcessingDataList().stream()
+                                .filter(p -> p.uuid.equals(selectedItem.uuid))
+                                .findFirst();
                         if (first.isPresent()) {
                             PostProcessingData postProcessingData = first.get();
                             PostProcessingService ppService = new PostProcessingService(configManager);
-                            String processedText = ppService.applyPostProcessing(transcript, postProcessingData);
-                            RecorderForm.this.processedText.setText(processedText);
-                            playClickSound();
-                            copyTranscriptionToClipboard(processedText);
-                            pasteFromClipboard();
-                            updateTrayMenu();
-
+                            SwingWorker<String, Void> worker = ppService.applyPostProcessing(transcript, postProcessingData);
+                            worker.addPropertyChangeListener(evt -> {
+                                if ("state".equals(evt.getPropertyName()) && evt.getNewValue() == SwingWorker.StateValue.DONE) {
+                                    try {
+                                        String processedText = worker.get();
+                                        RecorderForm.this.processedText.setText(processedText);
+                                        playClickSound();
+                                        copyTranscriptionToClipboard(processedText);
+                                        pasteFromClipboard();
+                                        updateTrayMenu();
+                                    } catch (Exception ex) {
+                                        logger.error("Error during asynchronous post processing:", ex);
+                                    }
+                                }
+                            });
                         } else {
                             logger.error("Post processing data not found for UUID: " + selectedItem.uuid);
                             updateTrayMenu();
-
                         }
-
                     }
                 } else {
                     playClickSound();

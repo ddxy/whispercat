@@ -332,9 +332,12 @@ public class PostProcessingForm extends JPanel {
         // Provider and Model Combo; now including Open WebUI as an option.
         private JComboBox<String> providerCombo;
         private JComboBox<String> modelCombo;
-        // New combo for synthesizer voice selection.
+
+        private JComboBox<String> synthesizerProviderCombo; // New combo for the synthesizer provider
         private JComboBox<String> synthesizerVoiceCombo;
         private String storedSynthesizerVoice = null;
+        private String storedSynthesizerProvider = "ElevenLabs"; // Default provider for synthesizer steps
+
 
 
         // Play/Stop button for sample playback.
@@ -349,13 +352,13 @@ public class PostProcessingForm extends JPanel {
         private Player audioPlayer;
         private SwingWorker<Void, Void> playbackWorker;
         // Default sample ID to be used in API call.
-        private static final String DEFAULT_SAMPLE_ID = "default";
 
         public ProcessingStepPanel() {
             setBorder(BorderFactory.createTitledBorder("Processing Step"));
             setLayout(new BoxLayout(this, BoxLayout.Y_AXIS));
             setAlignmentX(LEFT_ALIGNMENT);
             add(Box.createVerticalStrut(10));
+            // Top Panel with Processing Type and Remove Button remains unchanged…
             JPanel topPanel = new JPanel(new BorderLayout());
             JPanel typePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
             typePanel.add(new JLabel("Processing Type:"));
@@ -377,13 +380,11 @@ public class PostProcessingForm extends JPanel {
             removePanel.add(removeButton);
             topPanel.add(removePanel, BorderLayout.EAST);
             add(topPanel);
-
-            // Definition of Provider and Model Panel (for Prompt type)
+            // Definition of Provider and Model Panel (for Prompt type) remains unchanged...
             JPanel providerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
             JLabel providerLabel = new JLabel("Provider:");
             providerPanel.add(providerLabel);
             providerPanel.add(Box.createHorizontalStrut(5));
-            // Extended to include "OpenAI" and "Open WebUI"
             providerCombo = new JComboBox<>(new String[]{"OpenAI", "Open WebUI"});
             providerPanel.add(providerCombo);
             providerPanel.add(Box.createHorizontalStrut(15));
@@ -392,7 +393,6 @@ public class PostProcessingForm extends JPanel {
             providerPanel.add(Box.createHorizontalStrut(5));
             modelCombo = new JComboBox<>(new String[]{"gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"});
             providerPanel.add(modelCombo);
-            // When provider is changed, update model combo.
             providerCombo.addItemListener(e -> {
                 if (e.getStateChange() == ItemEvent.SELECTED) {
                     updateModelCombo();
@@ -444,15 +444,31 @@ public class PostProcessingForm extends JPanel {
             replacementPanel.add(replacementTextField);
             add(replacementPanel);
 
-            // New Synthesizer Panel (for Synthesizer step type)
-            synthesizerPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-            synthesizerPanel.add(new JLabel("Voice:"));
+            synthesizerPanel = new JPanel();
+            synthesizerPanel.setLayout(new BoxLayout(synthesizerPanel, BoxLayout.Y_AXIS));
+            synthesizerPanel.add(Box.createVerticalStrut(20));
+
+            JPanel synthSubPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+            JLabel synthProviderLabel = new JLabel("Provider:");
+            synthSubPanel.add(synthProviderLabel);
+            synthSubPanel.add(Box.createHorizontalStrut(5));
+            synthesizerProviderCombo = new JComboBox<>(new String[]{"ElevenLabs"});
+            synthesizerProviderCombo.setSelectedItem("11 Labs");
+            synthSubPanel.add(synthesizerProviderCombo);
+            synthSubPanel.add(Box.createHorizontalStrut(15));
+            JLabel synthVoiceLabel = new JLabel("Voice:");
+            synthSubPanel.add(synthVoiceLabel);
+            synthSubPanel.add(Box.createHorizontalStrut(5));
             synthesizerVoiceCombo = new JComboBox<>();
-            synthesizerPanel.add(synthesizerVoiceCombo);
-            // New Play/Stop button for sample playback.
+            synthesizerVoiceCombo.setPreferredSize(new Dimension(120, synthesizerVoiceCombo.getPreferredSize().height));
+            synthSubPanel.add(synthesizerVoiceCombo);
+
+            synthSubPanel.add(Box.createHorizontalStrut(5));
             playButton = new JButton("Play");
-            synthesizerPanel.add(playButton);
+            synthSubPanel.add(playButton);
             playButton.addActionListener(e -> onPlayButtonClicked());
+
+            synthesizerPanel.add(synthSubPanel);
             add(synthesizerPanel);
 
             // Update field visibility based on selected type.
@@ -552,18 +568,15 @@ public class PostProcessingForm extends JPanel {
         public void updateSynthesizerVoiceCombo() {
             synthesizerVoiceCombo.removeAllItems();
             if (elevenLabsVoices == null || elevenLabsVoices.isEmpty()) {
-                // If voices haven't been loaded, keep the stored voice value if available.
                 if (storedSynthesizerVoice != null && !storedSynthesizerVoice.trim().isEmpty()) {
                     synthesizerVoiceCombo.addItem(storedSynthesizerVoice);
                 } else {
                     synthesizerVoiceCombo.addItem("Loading voices...");
                 }
             } else {
-                // Populate combo using the loaded voice data.
                 for (ElevenLabsVoiceClient.VoiceData voice : elevenLabsVoices) {
                     synthesizerVoiceCombo.addItem(voice.toString());
                 }
-                // If a saved voice is present, reselect it.
                 if (storedSynthesizerVoice != null) {
                     synthesizerVoiceCombo.setSelectedItem(storedSynthesizerVoice);
                 }
@@ -600,7 +613,7 @@ public class PostProcessingForm extends JPanel {
         public void loadStepData(ProcessingStepData stepData) {
             typeCombo.setSelectedItem(stepData.type);
             if ("Prompt".equals(stepData.type)) {
-                storedModel = stepData.model; // Store the saved value.
+                storedModel = stepData.model;
                 providerCombo.setSelectedItem(stepData.provider);
                 modelCombo.setSelectedItem(stepData.model);
                 if (stepData.systemPrompt != null && !stepData.systemPrompt.trim().isEmpty()) {
@@ -621,10 +634,12 @@ public class PostProcessingForm extends JPanel {
                 textToReplaceField.setText(stepData.textToReplace);
                 replacementTextField.setText(stepData.replacementText);
             } else if ("Synthesizer".equals(stepData.type)) {
-                // Save the previously selected voice string, so that it is retained.
+                // Store the saved values for later re-selection.
                 storedSynthesizerVoice = stepData.ttsModel;
+                storedSynthesizerProvider = stepData.ttsProvider != null ? stepData.ttsProvider : "ElevenLabs";
+                // Set the provider combo and then update the voice combo.
+                synthesizerProviderCombo.setSelectedItem(storedSynthesizerProvider);
                 updateSynthesizerVoiceCombo();
-                // Try to reselect the saved voice if available.
                 if (storedSynthesizerVoice != null) {
                     synthesizerVoiceCombo.setSelectedItem(storedSynthesizerVoice);
                 }
@@ -633,9 +648,7 @@ public class PostProcessingForm extends JPanel {
         }
 
         /**
-         * Validates input according to processing type, taking into account placeholder text.
-         *
-         * @return true if valid; otherwise, false.
+         * Validates input according to processing type.
          */
         public boolean isValidInput() {
             String type = (String) typeCombo.getSelectedItem();
@@ -653,12 +666,8 @@ public class PostProcessingForm extends JPanel {
             } else if ("Prompt".equals(type)) {
                 String systemText = systemPromptArea.getText();
                 String userText = userPromptArea.getText();
-                if (systemText.equals(SYSTEM_PROMPT_PLACEHOLDER)) {
-                    systemText = "";
-                }
-                if (userText.equals(USER_PROMPT_PLACEHOLDER)) {
-                    userText = "";
-                }
+                if (systemText.equals(SYSTEM_PROMPT_PLACEHOLDER)) systemText = "";
+                if (userText.equals(USER_PROMPT_PLACEHOLDER)) userText = "";
                 boolean systemEmpty = systemText.trim().isEmpty();
                 boolean userEmpty = userText.trim().isEmpty();
                 if (systemEmpty && userEmpty) {
@@ -679,10 +688,18 @@ public class PostProcessingForm extends JPanel {
                             "The User Prompt should include the placeholder '{{input}}' at least once.");
                 }
             } else if ("Synthesizer".equals(type)) {
-                // For synthesizer steps, ensure a voice is selected.
+                if (synthesizerProviderCombo.getSelectedItem() == null ||
+                        ((String)synthesizerProviderCombo.getSelectedItem()).trim().isEmpty()) {
+                    synthesizerProviderCombo.setBorder(BorderFactory.createLineBorder(Color.RED));
+                    synthesizerProviderCombo.requestFocusInWindow();
+                    PostProcessingForm.this.scrollToComponent(synthesizerProviderCombo);
+                    Notificationmanager.getInstance().showNotification(ToastNotification.Type.ERROR,
+                            "For 'Synthesizer', a valid provider must be selected.");
+                    return false;
+                }
                 if (synthesizerVoiceCombo.getItemCount() == 0 ||
                         synthesizerVoiceCombo.getSelectedItem() == null ||
-                        ((String) synthesizerVoiceCombo.getSelectedItem()).contains("No voices loaded")) {
+                        ((String)synthesizerVoiceCombo.getSelectedItem()).contains("No voices loaded")) {
                     synthesizerVoiceCombo.setBorder(BorderFactory.createLineBorder(Color.RED));
                     synthesizerVoiceCombo.requestFocusInWindow();
                     PostProcessingForm.this.scrollToComponent(synthesizerVoiceCombo);
@@ -765,6 +782,9 @@ public class PostProcessingForm extends JPanel {
          *
          * @return a ProcessingStepData object representing the step.
          */
+        /**
+         * Extracts data from this processing step.
+         */
         public ProcessingStepData getProcessingStepData() {
             ProcessingStepData stepData = new ProcessingStepData();
             stepData.type = (String) typeCombo.getSelectedItem();
@@ -772,21 +792,16 @@ public class PostProcessingForm extends JPanel {
                 stepData.provider = (String) providerCombo.getSelectedItem();
                 stepData.model = (String) modelCombo.getSelectedItem();
                 String sysText = systemPromptArea.getText();
-                if (sysText.equals(SYSTEM_PROMPT_PLACEHOLDER)) {
-                    sysText = "";
-                }
+                if (sysText.equals(SYSTEM_PROMPT_PLACEHOLDER)) sysText="";
                 stepData.systemPrompt = sysText;
                 String userText = userPromptArea.getText();
-                if (userText.equals(USER_PROMPT_PLACEHOLDER)) {
-                    userText = "";
-                }
+                if (userText.equals(USER_PROMPT_PLACEHOLDER)) userText="";
                 stepData.userPrompt = userText;
             } else if ("Text Replacement".equals(stepData.type)) {
                 stepData.textToReplace = textToReplaceField.getText();
                 stepData.replacementText = replacementTextField.getText();
             } else if ("Synthesizer".equals(stepData.type)) {
-                stepData.ttsProvider = "ElevenLabs";
-                // Save the full string from the synthesizer voice combo.
+                stepData.ttsProvider = (String) synthesizerProviderCombo.getSelectedItem();
                 stepData.ttsModel = (String) synthesizerVoiceCombo.getSelectedItem();
             }
             return stepData;

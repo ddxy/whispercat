@@ -3,88 +3,106 @@ package org.whispercat.postprocessing;
 import org.whispercat.ConfigManager;
 import org.whispercat.postprocessing.clients.OpenWebUIProcessClient;
 import org.whispercat.recording.OpenAIClient;
+import javazoom.jl.decoder.JavaLayerException;
+import javazoom.jl.player.Player;
+import org.whispercat.recording.clients.ElevenLabsClient;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.BufferedInputStream;
 import java.io.IOException;
+import java.util.concurrent.ExecutionException;
+import javax.swing.SwingWorker;
 
 public class PostProcessingService {
-
     private static final org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(PostProcessingService.class);
-
-    // OpenAIClient instance used to make synchronous calls to the API.
     private OpenAIClient openAIClient;
     private OpenWebUIProcessClient openWebUIClient;
+    private ConfigManager configManager;
 
-    /**
-     * Constructs the PostProcessingService with the given ConfigManager.
-     * The OpenAIClient is initialized here.
-     *
-     * @param configManager The ConfigManager that contains configuration settings.
-     */
     public PostProcessingService(ConfigManager configManager) {
+        this.configManager = configManager;
         this.openAIClient = new OpenAIClient(configManager);
         this.openWebUIClient = new OpenWebUIProcessClient(configManager);
     }
 
-    /**
-     * Applies the defined post-processing steps sequentially.
-     *
-     * @param originalText       The initial transcribed text.
-     * @param postProcessingData The configuration for post-processing.
-     * @return The processed text after all steps.
-     */
-    public String applyPostProcessing(String originalText, PostProcessingData postProcessingData) {
-        String processedText = originalText;
-
-        // Iterate over all defined steps.
-        for (ProcessingStepData step : postProcessingData.steps) {
-            if ("Prompt".equalsIgnoreCase(step.type)) {
-                // Use OpenAIClient for a synchronous call.
-                processedText = performPromptProcessing(processedText, step);
-            } else if ("Text Replacement".equalsIgnoreCase(step.type)) {
-                // Replace text based on configuration.
-                processedText = processedText.replace(step.textToReplace, step.replacementText);
-            } else if ("ElevenLabs Voice".equalsIgnoreCase(step.type)) {
-                logger.error("Unknown post-processing step type: " + step.type);
+    public SwingWorker<String, Void> applyPostProcessing(String originalText, PostProcessingData postProcessingData) {
+        SwingWorker<String, Void> worker = new SwingWorker<>() {
+            @Override
+            protected String doInBackground() throws Exception {
+                String processedText = originalText;
+                for (ProcessingStepData step : postProcessingData.steps) {
+                    if ("Prompt".equalsIgnoreCase(step.type)) {
+                        processedText = performPromptProcessing(processedText, step);
+                    } else if ("Text Replacement".equalsIgnoreCase(step.type)) {
+                        processedText = processedText.replace(step.textToReplace, step.replacementText);
+                    } else if ("Synthesizer".equalsIgnoreCase(step.type)) {
+                        processedText = processSynthesizerStep(processedText, step);
+                    } else {
+                        logger.info("Unknown post-processing step type: " + step.type);
+                    }
+                }
+                return processedText;
             }
-            else {
-                // Log unknown step type.
-                System.out.println("Unknown post-processing step type: " + step.type);
-            }
-        }
 
-        return processedText;
+            @Override
+            protected void done() {
+                try {
+                    String result = get();
+                    logger.info("Post processing complete. Result: " + result);
+                    // Callback or further processing can go here.
+                } catch (InterruptedException | ExecutionException ex) {
+                    logger.error("Error during asynchronous post processing: ", ex);
+                }
+            }
+        };
+        worker.execute();
+        return worker;
     }
 
-    /**
-     * Synchronously processes the text using OpenAI API via a prompt.
-     * The processing is executed step-by-step. After receiving the API response,
-     * the result is used as input for the next processing step.
-     *
-     * @param inputText The input text to process.
-     * @param step      The processing configuration.
-     * @return The processed text from the OpenAI response.
-     */
     private String performPromptProcessing(String inputText, ProcessingStepData step) {
-
         logger.info("Pre-processing input: " + step.userPrompt);
         logger.info("Transcript: " + inputText);
-        // Combine the user prompt with the input text.
         String fullUserPrompt = step.userPrompt.replaceAll("\\{\\{input}}", inputText);
         logger.info("Post-processing input: " + fullUserPrompt);
         try {
-            // Synchronous call using the provided OpenAIClient.
-            if(step.provider.equalsIgnoreCase("OpenAI")){
+            if (step.provider.equalsIgnoreCase("OpenAI")) {
                 logger.info("Processing using OpenAI API.");
-                String result = openAIClient.processText(step.systemPrompt, fullUserPrompt, step.model);
-                return result;
-            } else if(step.provider.equalsIgnoreCase("Open WebUI")){
+                return openAIClient.processText(step.systemPrompt, fullUserPrompt, step.model);
+            } else if (step.provider.equalsIgnoreCase("Open WebUI")) {
                 logger.info("Processing using Open WebUI.");
-                String result = openWebUIClient.processText(step.systemPrompt, fullUserPrompt, step.model);
-                return result;
+                return openWebUIClient.processText(step.systemPrompt, fullUserPrompt, step.model);
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            logger.error("Error during prompt processing: ", e);
         }
         return inputText;
+    }
+
+    private String processSynthesizerStep(String processedText, ProcessingStepData step) throws Exception {
+        int startIdx = step.ttsModel.indexOf("(");
+        int endIdx = step.ttsModel.indexOf(")");
+        if (startIdx != -1 && endIdx != -1 && startIdx < endIdx) {
+            String voiceId = step.ttsModel.substring(startIdx + 1, endIdx);
+            String outputFormat = "mp3_44100_128";
+            ElevenLabsClient elevenLabsClient = new ElevenLabsClient(configManager, voiceId, outputFormat);
+            File audioFile = elevenLabsClient.synthesize(processedText);
+            if (audioFile != null) {
+                playAudioFile(audioFile);
+            }
+        } else {
+            logger.error("Invalid ttsModel format: " + step.ttsModel);
+        }
+        return processedText;
+    }
+
+    private void playAudioFile(File audioFile) throws Exception {
+        try (FileInputStream fis = new FileInputStream(audioFile);
+             BufferedInputStream bis = new BufferedInputStream(fis)) {
+            Player player = new Player(bis);
+            player.play();
+        } catch (IOException | JavaLayerException ex) {
+            logger.error("Error playing audio file: ", ex);
+        }
     }
 }

@@ -543,7 +543,7 @@ public class SettingsForm extends JPanel {
         synthGbc.gridwidth = 1;
         synthGbc.weightx = 0;
         synthGbc.anchor = GridBagConstraints.EAST;
-        synthesizersPanel.add(new JLabel("11labs API Key:"), synthGbc);
+        synthesizersPanel.add(new JLabel("ElevenLabs API Key:"), synthGbc);
         elevenLabsApiKeyField = new JTextField(20);
         synthGbc.gridx = 1;
         synthGbc.gridy = synthRow;

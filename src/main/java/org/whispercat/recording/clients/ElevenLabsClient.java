@@ -103,8 +103,9 @@ public class ElevenLabsClient {
                 // Parse the error message from the response.
                 String responseString = new String(responseBytes, StandardCharsets.UTF_8);
                 JsonNode jsonNode = objectMapper.readTree(responseString);
-                String errorMessage = jsonNode.path("error").path("message").asText();
+                String errorMessage = jsonNode.path("detail").path("message").asText();
                 logger.error("Error from ElevenLabs API: {}", errorMessage);
+                Notificationmanager.getInstance().showNotification(ToastNotification.Type.ERROR, "Error from ElevenLabs API. See logs");
                 throw new IOException("Error from ElevenLabs API: " + errorMessage);
             }
         }
