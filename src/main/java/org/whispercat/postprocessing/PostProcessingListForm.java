@@ -148,6 +148,9 @@ public class PostProcessingListForm extends JPanel {
                     index = listContainer.getComponentCount();
                 }
                 listContainer.remove(droppedPanel);
+                if(index > listContainer.getComponentCount()) {
+                    index = listContainer.getComponentCount();
+                }
                 listContainer.add(droppedPanel, index);
                 listContainer.revalidate();
                 listContainer.repaint();

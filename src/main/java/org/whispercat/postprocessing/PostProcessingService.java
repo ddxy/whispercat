@@ -1,18 +1,19 @@
 package org.whispercat.postprocessing;
 
+import javazoom.jl.decoder.JavaLayerException;
+import javazoom.jl.player.Player;
 import org.whispercat.ConfigManager;
 import org.whispercat.postprocessing.clients.OpenWebUIProcessClient;
 import org.whispercat.recording.OpenAIClient;
-import javazoom.jl.decoder.JavaLayerException;
-import javazoom.jl.player.Player;
-import org.whispercat.recording.clients.ElevenLabsClient;
+import org.whispercat.recording.clients.ElevenLabsRecordingClient;
+import org.whispercat.recording.clients.OpenAIRecordingClient;
 
+import javax.swing.*;
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
-import javax.swing.SwingWorker;
 
 public class PostProcessingService {
     private static final org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(PostProcessingService.class);
@@ -80,19 +81,31 @@ public class PostProcessingService {
     }
 
     private String processSynthesizerStep(String processedText, ProcessingStepData step) throws Exception {
-        int startIdx = step.ttsModel.indexOf("(");
-        int endIdx = step.ttsModel.indexOf(")");
-        if (startIdx != -1 && endIdx != -1 && startIdx < endIdx) {
-            String voiceId = step.ttsModel.substring(startIdx + 1, endIdx);
-            String outputFormat = "mp3_44100_128";
-            ElevenLabsClient elevenLabsClient = new ElevenLabsClient(configManager, voiceId, outputFormat);
-            File audioFile = elevenLabsClient.synthesize(processedText);
+
+        if (step.ttsProvider.equalsIgnoreCase("ElevenLabs")) {
+            int startIdx = step.voiceId.indexOf("(");
+            int endIdx = step.voiceId.indexOf(")");
+            if (startIdx != -1 && endIdx != -1 && startIdx < endIdx) {
+                String voiceId = step.voiceId.substring(startIdx + 1, endIdx);
+                String outputFormat = "mp3_44100_128";
+                ElevenLabsRecordingClient elevenLabsRecordingClient = new ElevenLabsRecordingClient(configManager, voiceId, outputFormat, step.ttsModel);
+                File audioFile = elevenLabsRecordingClient.synthesize(processedText);
+                if (audioFile != null) {
+                    playAudioFile(audioFile);
+                }
+            } else {
+                logger.error("Invalid ttsModel format: " + step.ttsModel);
+            }
+        } else if (step.ttsProvider.equalsIgnoreCase("OpenAI")) {
+            File audioFile = new OpenAIRecordingClient(configManager).synthesize(processedText, step.ttsModel, step.voiceId);
             if (audioFile != null) {
                 playAudioFile(audioFile);
             }
         } else {
-            logger.error("Invalid ttsModel format: " + step.ttsModel);
+            logger.error("Unknown synthesizer provider: " + step.provider);
         }
+
+
         return processedText;
     }
 

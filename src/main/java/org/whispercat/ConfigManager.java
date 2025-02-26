@@ -122,8 +122,8 @@ public class ConfigManager {
         saveConfig();
     }
 
-    public CharSequence getApiKey() {
-        return properties.getProperty("apiKey");
+    public String getApiKey() {
+        return properties.getProperty("apiKey", "");
     }
 
     public CharSequence getMicrophone() {
@@ -144,7 +144,7 @@ public class ConfigManager {
         properties.setProperty("postProcessingData", gson.toJson(array));
         saveConfig();
     }
-    
+
     public void savePostProcessingData(PostProcessingData data) {
         Gson gson = new Gson();
         String json = gson.toJson(data);

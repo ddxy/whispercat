@@ -24,9 +24,9 @@ import java.nio.file.Files;
  * Client class for interacting with the ElevenLabs text-to-speech API.
  * This client takes a text as input and returns an audio file.
  */
-public class ElevenLabsClient {
+public class ElevenLabsRecordingClient {
 
-    private static final Logger logger = LogManager.getLogger(ElevenLabsClient.class);
+    private static final Logger logger = LogManager.getLogger(ElevenLabsRecordingClient.class);
 
     // Base URL for the ElevenLabs API.
     private static final String BASE_API_URL = "https://api.elevenlabs.io/v1/text-to-speech/";
@@ -49,7 +49,7 @@ public class ElevenLabsClient {
      * @param voiceId The Voice ID to be used.
      * @param outputFormat The desired output format.
      */
-    public ElevenLabsClient(ConfigManager configManager, String voiceId, String outputFormat) {
+    public ElevenLabsRecordingClient(ConfigManager configManager, String voiceId, String outputFormat, String modelId) {
         this.configManager = configManager;
         this.voiceId = voiceId;
         this.outputFormat = outputFormat;

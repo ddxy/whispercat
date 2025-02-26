@@ -45,6 +45,8 @@ public class ProcessingStepData {
     public Float stability;           // e.g., value between 0.0 and 1.0.
     public Float similarityBoost;     // e.g., value to enhance similarity to the original voice.
 
+
+
     // Audio output options.
     public String outputFormat;       // e.g., "mp3", "ogg", "wav".
     public Float speakingRate;        // e.g., 1.0 = normal speed.
