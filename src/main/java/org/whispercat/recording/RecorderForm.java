@@ -155,7 +155,7 @@ public class RecorderForm extends javax.swing.JPanel {
         advancedSettingsContainerPanel.setBorder(new EmptyBorder(10, 50, 0, 50));
         advancedSettingsContainerPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         // New checkbox to enable advanced recording settings
-        JCheckBox enableAdvancedSettingsCheckBox = new JCheckBox("Advanced Settings");
+        JCheckBox enableAdvancedSettingsCheckBox = new JCheckBox("Show Advanced Settings");
         enableAdvancedSettingsCheckBox.setHorizontalTextPosition(SwingConstants.LEFT);
         enableAdvancedSettingsCheckBox.setAlignmentX(Component.LEFT_ALIGNMENT);
         advancedSettingsContainerPanel.add(enableAdvancedSettingsCheckBox);
@@ -180,10 +180,17 @@ public class RecorderForm extends javax.swing.JPanel {
         speakerRecordingPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         speakerRecordingPanel.setBorder(BorderFactory.createTitledBorder("Audio Output Recording Settings"));
 
+        speakerRecordingPanel.add(Box.createVerticalStrut(5));
         recordAudioOutputCheckBox = new JCheckBox("Record Audio Output");
         recordAudioOutputCheckBox.setHorizontalTextPosition(SwingConstants.LEFT);
         recordAudioOutputCheckBox.setAlignmentX(Component.LEFT_ALIGNMENT);
         speakerRecordingPanel.add(recordAudioOutputCheckBox);
+        speakerRecordingPanel.add(Box.createVerticalStrut(5));
+
+        doNotRecordMicrophoneCheckBox = new JCheckBox("Do Not Record Microphone");
+        doNotRecordMicrophoneCheckBox.setHorizontalTextPosition(SwingConstants.LEFT);
+        doNotRecordMicrophoneCheckBox.setAlignmentX(Component.LEFT_ALIGNMENT);
+        speakerRecordingPanel.add(doNotRecordMicrophoneCheckBox);
         speakerRecordingPanel.add(Box.createVerticalStrut(5));
 
         JPanel outputDevicePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
@@ -222,12 +229,6 @@ public class RecorderForm extends javax.swing.JPanel {
             speakerRecorder.testAudioOutput(selectedDevice, outputProgressBar);
         });
 
-        doNotRecordMicrophoneCheckBox = new JCheckBox("Do Not Record Microphone");
-        doNotRecordMicrophoneCheckBox.setHorizontalTextPosition(SwingConstants.LEFT);
-        doNotRecordMicrophoneCheckBox.setAlignmentX(Component.LEFT_ALIGNMENT);
-        speakerRecordingPanel.add(Box.createVerticalStrut(5));
-        speakerRecordingPanel.add(doNotRecordMicrophoneCheckBox);
-        // ===== End of new Audio Output Recording settings =====
 
         advancedSettingsPanel.setVisible(false);
         enableAdvancedSettingsCheckBox.addActionListener(e -> {
@@ -244,7 +245,7 @@ public class RecorderForm extends javax.swing.JPanel {
 
         JPanel postProcessingContainerPanel = new JPanel();
         postProcessingContainerPanel.setLayout(new BoxLayout(postProcessingContainerPanel, BoxLayout.Y_AXIS));
-        postProcessingContainerPanel.setBorder(new EmptyBorder(10, 50, 0, 50));
+        postProcessingContainerPanel.setBorder(new EmptyBorder(0, 50, 0, 50));
         postProcessingContainerPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         postProcessingContainerPanel.add(Box.createVerticalStrut(10));
         enablePostProcessingCheckBox.setHorizontalTextPosition(SwingConstants.LEFT);
@@ -341,15 +342,15 @@ public class RecorderForm extends javax.swing.JPanel {
         layout.setHorizontalGroup(
                 layout.createParallelGroup(javax.swing.GroupLayout.Alignment.CENTER)
                         .addComponent(centerPanel)
-                        .addComponent(advancedSettingsContainerPanel)
                         .addComponent(postProcessingContainerPanel)
+                        .addComponent(advancedSettingsContainerPanel)
         );
         layout.setVerticalGroup(
                 layout.createSequentialGroup()
                         .addContainerGap()
                         .addComponent(centerPanel)
-                        .addComponent(advancedSettingsContainerPanel)
                         .addComponent(postProcessingContainerPanel)
+                        .addComponent(advancedSettingsContainerPanel)
                         .addContainerGap()
         );
     }
@@ -716,106 +717,4 @@ public class RecorderForm extends javax.swing.JPanel {
         }
     }
 
-    /**
-     * Combines two mono audio files into one stereo file.
-     * The left channel (channel 1) will contain the samples from micFile
-     * and the right channel (channel 2) will contain the samples from speakerFile.
-     * If one file is shorter than the other, the missing samples are padded with zero.
-     *
-     * This implementation assumes 8-bit PCM audio.
-     *
-     * @param micFile     The microphone recorded file (mono).
-     * @param speakerFile The speaker recorded file (mono).
-     * @return The output stereo File.
-     * @throws Exception if an error occurs during processing.
-     */
-    private File mixAudioFiles(File micFile, File speakerFile) throws Exception {
-        // Falls eine Datei null ist, verwende die andere und erstelle daraus ein Stereo-Format (Kopie in beiden Kanälen).
-        if(micFile == null) {
-            return speakerFile;
-        } else if(speakerFile == null) {
-            return micFile;
-        }
-
-        // Erstelle den Output-Dateinamen
-        File outputFile = new File(System.getProperty("java.io.tmpdir"), "stereo_" +
-                new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date()) + ".wav");
-
-        // Öffne beide Audio-Streams
-        AudioInputStream stream1 = AudioSystem.getAudioInputStream(micFile);
-        AudioInputStream stream2 = AudioSystem.getAudioInputStream(speakerFile);
-
-        AudioFormat format1 = stream1.getFormat();
-        AudioFormat format2 = stream2.getFormat();
-
-        // Falls die Formate nicht übereinstimmen, versuche stream2 in das Format von stream1 zu konvertieren.
-        if (!format1.matches(format2)) {
-            stream2 = AudioSystem.getAudioInputStream(format1, stream2);
-        }
-
-        // Wir gehen davon aus, dass die Input-Dateien mono sind.
-        // Erzeuge ein neues AudioFormat für Stereo (2 Kanäle).
-        // Beispiel für 8-bit PCM: SampleSizeInBits = format1.getSampleSizeInBits(), channels = 2.
-        AudioFormat stereoFormat = new AudioFormat(
-                format1.getEncoding(),
-                format1.getSampleRate(),
-                format1.getSampleSizeInBits(),
-                2,  // 2 Kanäle
-                (format1.getSampleSizeInBits() / 8) * 2, // frameSize = bytes per sample * 2 channels
-                format1.getFrameRate(),
-                format1.isBigEndian()
-        );
-
-        // Wir lesen die Dateien blockweise. Für 8-bit PCM ist ein Sample 1 Byte.
-        int bytesPerSample = format1.getSampleSizeInBits() / 8;
-        byte[] buffer1 = new byte[1024];
-        byte[] buffer2 = new byte[1024];
-
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-
-        int read1 = 0, read2 = 0;
-        // Solange mindestens ein Stream Daten liefert, werden Samples interleaved.
-        // Wir gehen zeilenweise (Byte für Byte) vor.
-        while (true) {
-            read1 = stream1.read(buffer1);
-            read2 = stream2.read(buffer2);
-
-            // Falls beide Streams das Ende erreicht haben, brechen wir ab
-            if (read1 == -1 && read2 == -1) {
-                break;
-            }
-
-            // Länge des aktuellen Blocks: wir müssen den maximal gelesenen Wert verwenden
-            int length = Math.max(read1 == -1 ? 0 : read1, read2 == -1 ? 0 : read2);
-
-            // Erstelle einen Buffer für den Stereo-Frame (Interleaved: sample1, sample2, sample1, sample2,...)
-            byte[] stereoBuffer = new byte[length * 2];  // 2 Kanäle
-
-            for (int i = 0; i < length; i++) {
-                // Lese Sample vom ersten Stream, falls vorhanden – sonst 0.
-                byte sample1 = (i < (read1 == -1 ? 0 : read1)) ? buffer1[i] : 0;
-                // Lese Sample vom zweiten Stream, falls vorhanden – sonst 0.
-                byte sample2 = (i < (read2 == -1 ? 0 : read2)) ? buffer2[i] : 0;
-
-                // Im Stereo-Array: zuerst sample1 (linker Kanal), dann sample2 (rechter Kanal)
-                stereoBuffer[i * 2] = sample1;
-                stereoBuffer[i * 2 + 1] = sample2;
-            }
-
-            baos.write(stereoBuffer);
-        }
-
-        byte[] stereoBytes = baos.toByteArray();
-        ByteArrayInputStream bais = new ByteArrayInputStream(stereoBytes);
-        AudioInputStream stereoStream = new AudioInputStream(bais, stereoFormat, stereoBytes.length / stereoFormat.getFrameSize());
-
-        // Schreibe die Stereo-Datei als WAV
-        AudioSystem.write(stereoStream, AudioFileFormat.Type.WAVE, outputFile);
-
-        stream1.close();
-        stream2.close();
-        stereoStream.close();
-
-        return outputFile;
-    }
 }
