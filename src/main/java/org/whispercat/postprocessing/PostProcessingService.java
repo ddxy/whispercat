@@ -4,7 +4,6 @@ import javazoom.jl.decoder.JavaLayerException;
 import javazoom.jl.player.Player;
 import org.whispercat.ConfigManager;
 import org.whispercat.postprocessing.clients.OpenWebUIProcessClient;
-import org.whispercat.recording.OpenAIClient;
 import org.whispercat.recording.clients.ElevenLabsRecordingClient;
 import org.whispercat.recording.clients.OpenAIRecordingClient;
 
@@ -17,13 +16,13 @@ import java.util.concurrent.ExecutionException;
 
 public class PostProcessingService {
     private static final org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(PostProcessingService.class);
-    private OpenAIClient openAIClient;
+    private OpenAIRecordingClient openAIClient;
     private OpenWebUIProcessClient openWebUIClient;
     private ConfigManager configManager;
 
     public PostProcessingService(ConfigManager configManager) {
         this.configManager = configManager;
-        this.openAIClient = new OpenAIClient(configManager);
+        this.openAIClient = new OpenAIRecordingClient(configManager);
         this.openWebUIClient = new OpenWebUIProcessClient(configManager);
     }
 

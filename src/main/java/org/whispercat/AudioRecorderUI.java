@@ -4,6 +4,7 @@ import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.FlatLaf;
 import com.formdev.flatlaf.fonts.roboto.FlatRobotoFont;
 import com.formdev.flatlaf.themes.FlatMacLightLaf;
+import org.freedesktop.gstreamer.Gst;
 import org.whispercat.recording.RecorderForm;
 
 import javax.swing.*;
@@ -62,6 +63,7 @@ public class AudioRecorderUI extends javax.swing.JFrame {
 
 
     public static void main(String args[]) {
+        Gst.init("", new String[0]);
         FlatRobotoFont.install();
         FlatLaf.registerCustomDefaultsSource("theme");
         UIManager.put("defaultFont", new Font(FlatRobotoFont.FAMILY, Font.PLAIN, 13));
