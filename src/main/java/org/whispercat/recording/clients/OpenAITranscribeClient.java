@@ -27,22 +27,26 @@ public class OpenAITranscribeClient {
     }
 
     public String transcribe(File audioFile) throws IOException {
+        if(audioFile == null) {
+            logger.info("Audio file is null");
+            return null;
+        }
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             HttpPost httpPost = new HttpPost(API_URL);
             httpPost.setHeader("Authorization", "Bearer " + configManager.getApiKey());
-
             MultipartEntityBuilder builder = MultipartEntityBuilder.create();
+            // Add the binary audio file with correct content type
             builder.addBinaryBody("file", audioFile, ContentType.create("audio/wav"), audioFile.getName());
+            // Set the model parameter
             builder.addTextBody("model", "whisper-1");
-
+            // Added new feature: Set the response format to SRT to obtain subtitle formatting
+            builder.addTextBody("response_format", "srt");
             HttpEntity multipart = builder.build();
             httpPost.setEntity(multipart);
-
             try (CloseableHttpResponse response = httpClient.execute(httpPost)) {
                 int statusCode = response.getStatusLine().getStatusCode();
                 HttpEntity responseEntity = response.getEntity();
                 String responseString = new String(responseEntity.getContent().readAllBytes(), StandardCharsets.UTF_8);
-
                 if (statusCode != 200) {
                     ObjectMapper objectMapper = new ObjectMapper();
                     JsonNode jsonNode = objectMapper.readTree(responseString);
@@ -50,10 +54,11 @@ public class OpenAITranscribeClient {
                     logger.error("Error from OpenAI API: {}", errorMessage);
                     throw new IOException("Error from OpenAI API: " + errorMessage);
                 }
-
                 ObjectMapper objectMapper = new ObjectMapper();
                 JsonNode jsonNode = objectMapper.readTree(responseString);
-                return jsonNode.path("text").asText();
+                // Return the transcription text in SRT format
+                // return jsonNode.path("text").asText();
+                return responseString;
             }
         }
     }

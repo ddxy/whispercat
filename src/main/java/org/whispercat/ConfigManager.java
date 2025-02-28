@@ -298,6 +298,23 @@ public class ConfigManager {
         properties.setProperty("openWebUIServerUrl", url);
     }
 
+    // LiteLLM
+    public String getLiteLLMApiKey() {
+        return properties.getProperty("liteLLMApiKey", "");
+    }
+
+    public void setLiteLLMApiKey(String apiKey) {
+        properties.setProperty("liteLLMApiKey", apiKey);
+    }
+
+    public String getLiteLLMServerUrl() {
+        return properties.getProperty("liteLLMServerUrl", "");
+    }
+
+    public void setLiteLLMServerUrl(String url) {
+        properties.setProperty("liteLLMServerUrl", url);
+    }
+
     public String getElevenLabsApiKey() {
         return properties.getProperty("elevenLabsApiKey", "");
     }

@@ -90,7 +90,7 @@ public class MainForm extends JLayeredPane {
             globalHotkeyListener.updateKeySequence(configManager.getKeySequence());
             // Stop recording only if there is a switch from dashboard to another sidemenu
             if (index != 0 && recorderForm != null) {
-                recorderForm.stopRecording(true);
+                recorderForm.customUpload(true);
                 recorderForm = null;
             }
             if (index != 0 && settingsForm != null) {

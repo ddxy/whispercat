@@ -3,6 +3,7 @@ package org.whispercat.postprocessing;
 import javazoom.jl.decoder.JavaLayerException;
 import javazoom.jl.player.Player;
 import org.whispercat.ConfigManager;
+import org.whispercat.postprocessing.clients.LiteLLMProcessClient;
 import org.whispercat.postprocessing.clients.OpenWebUIProcessClient;
 import org.whispercat.recording.clients.ElevenLabsRecordingClient;
 import org.whispercat.recording.clients.OpenAIRecordingClient;
@@ -18,12 +19,14 @@ public class PostProcessingService {
     private static final org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(PostProcessingService.class);
     private OpenAIRecordingClient openAIClient;
     private OpenWebUIProcessClient openWebUIClient;
+    private LiteLLMProcessClient liteLLMProcessClient;
     private ConfigManager configManager;
 
     public PostProcessingService(ConfigManager configManager) {
         this.configManager = configManager;
         this.openAIClient = new OpenAIRecordingClient(configManager);
         this.openWebUIClient = new OpenWebUIProcessClient(configManager);
+        this.liteLLMProcessClient = new LiteLLMProcessClient(configManager);
     }
 
     public SwingWorker<String, Void> applyPostProcessing(String originalText, PostProcessingData postProcessingData) {
@@ -72,6 +75,9 @@ public class PostProcessingService {
             } else if (step.provider.equalsIgnoreCase("Open WebUI")) {
                 logger.info("Processing using Open WebUI.");
                 return openWebUIClient.processText(step.systemPrompt, fullUserPrompt, step.model);
+            } else if (step.provider.equalsIgnoreCase("LiteLLM")) {
+                logger.info("Processing using LiteLLM.");
+                return liteLLMProcessClient.processText(step.systemPrompt, fullUserPrompt, step.model);
             }
         } catch (IOException e) {
             logger.error("Error during prompt processing: ", e);

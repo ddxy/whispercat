@@ -6,6 +6,7 @@ import org.whispercat.*;
 import org.whispercat.postprocessing.PostProcessingData;
 import org.whispercat.postprocessing.PostProcessingService;
 import org.whispercat.recording.clients.FasterWhisperTranscribeClient;
+import org.whispercat.recording.clients.LiteLLMRecordingClient;
 import org.whispercat.recording.clients.OpenAITranscribeClient;
 import org.whispercat.recording.clients.OpenWebUITranscribeClient;
 
@@ -35,6 +36,7 @@ public class RecorderForm extends javax.swing.JPanel {
     private final ConfigManager configManager;
     private final FasterWhisperTranscribeClient fasterWhisperTranscribeClient;
     private final OpenWebUITranscribeClient openWebUITranscribeClient;
+    private final LiteLLMRecordingClient liteLLMRecordingClient;
     private boolean isRecording = false;
     private AudioRecorder recorder;
     private final JTextArea transcriptionTextArea;
@@ -63,6 +65,7 @@ public class RecorderForm extends javax.swing.JPanel {
         this.whisperClient = new OpenAITranscribeClient(configManager);
         this.fasterWhisperTranscribeClient = new FasterWhisperTranscribeClient(configManager);
         this.openWebUITranscribeClient = new OpenWebUITranscribeClient(configManager);
+        this.liteLLMRecordingClient = new LiteLLMRecordingClient(configManager);
         // Instantiate the new SpeakerRecorder
         this.speakerRecorder = new SpeakerRecorder();
 
@@ -136,7 +139,7 @@ public class RecorderForm extends javax.swing.JPanel {
                             return false;
                         }
                         // Call the unified stopRecording method with the dropped file.
-                        stopRecording(droppedFile);
+                        customUpload(droppedFile);
                         return true;
                     }
                 } catch (Exception ex) {
@@ -161,10 +164,7 @@ public class RecorderForm extends javax.swing.JPanel {
         JPanel advancedSettingsPanel = new JPanel();
         advancedSettingsPanel.setLayout(new BoxLayout(advancedSettingsPanel, BoxLayout.Y_AXIS));
         advancedSettingsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        // Checkbox for "Space from Pip-Port" embedded in Advanced Settings
-        JCheckBox spaceFromPipPortCheckBox = new JCheckBox("Space from Pip-Port");
-        spaceFromPipPortCheckBox.setHorizontalTextPosition(SwingConstants.LEFT);
-        advancedSettingsPanel.add(spaceFromPipPortCheckBox);
+
         JCheckBox autoPasteCheckBox = new JCheckBox("Paste from clipboard (Ctrl+V)");
         autoPasteCheckBox.setHorizontalTextPosition(SwingConstants.LEFT);
         autoPasteCheckBox.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -399,6 +399,7 @@ public class RecorderForm extends javax.swing.JPanel {
             if (!doNotRecordMicrophoneCheckBox.isSelected()) {
                 startRecording();
             } else {
+                lastRecordedMicFile = null;
                 logger.info("Microphone recording disabled.");
             }
             // Start speaker recording if enabled
@@ -421,6 +422,9 @@ public class RecorderForm extends javax.swing.JPanel {
                         });
                     }
                 }
+            } else {
+                lastRecordedSpeakerFile = null;
+                logger.info("Speaker recording disabled.");
             }
             updateUIForRecordingStart();
             updateTrayMenu();
@@ -429,7 +433,7 @@ public class RecorderForm extends javax.swing.JPanel {
             if (recordAudioOutputCheckBox.isSelected()) {
                 speakerRecorder.stopRecordingOutput();
             }
-            stopRecording(false);
+            customUpload(false);
         }
     }
 
@@ -438,6 +442,7 @@ public class RecorderForm extends javax.swing.JPanel {
             isRecording = true;
             String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
             File audioFile = new File(System.getProperty("java.io.tmpdir"), "record_" + timeStamp + ".wav");
+            logger.info("Recording audio file to: " + audioFile.getPath());
             lastRecordedMicFile = audioFile;
             recorder = new AudioRecorder(audioFile, configManager);
             new Thread(recorder::start).start();
@@ -451,7 +456,7 @@ public class RecorderForm extends javax.swing.JPanel {
 
     private boolean isStoppingInProgress = false;
 
-    public void stopRecording(boolean cancelledRecording) {
+    public void customUpload(boolean cancelledRecording) {
         updateUIForRecordingStop();
         isStoppingInProgress = true;
         recordButton.setText("Converting. Please wait...");
@@ -464,30 +469,28 @@ public class RecorderForm extends javax.swing.JPanel {
                 // Wenn speakerWorker null ist, wurde entweder keine Speaker-Aufnahme gestartet oder er ist bereits fertig.
                 if (speakerWorker == null) {
                     // Direkt zum Mischen übergehen.
-                    doMixAndTranscribe();
+                    transcribe();
                 } else if (speakerWorker.getState() != SwingWorker.StateValue.DONE) {
                     // Füge einen Listener hinzu, der nach Abschluss des speakerWorker den Mix-Vorgang ausführt.
                     speakerWorker.addPropertyChangeListener(evt -> {
                         if ("state".equals(evt.getPropertyName()) &&
                                 evt.getNewValue() == SwingWorker.StateValue.DONE) {
                             try {
-                                // Nur wenn speakerWorker noch nicht null ist, rufe get() auf.
                                 if (speakerWorker != null) {
                                     lastRecordedSpeakerFile = speakerWorker.get();
                                 }
                             } catch (Exception ex) {
                                 logger.error("Error after speaker recording completion", ex);
                             } finally {
-                                doMixAndTranscribe();
+                                transcribe();
                             }
                         }
                     });
                 } else {
-                    // speakerWorker wurde bereits abgeschlossen.
-                    doMixAndTranscribe();
+                    transcribe();
                 }
             } else {
-                new AudioTranscriptionWorker(recorder.getOutputFile()).execute();
+                transcribe();
             }
         } else {
             logger.info("Recording cancelled");
@@ -495,20 +498,20 @@ public class RecorderForm extends javax.swing.JPanel {
         }
     }
 
-    private void doMixAndTranscribe() {
+    private void transcribe() {
         try {
-            File mixedFile = mixAudioFiles(lastRecordedMicFile, lastRecordedSpeakerFile);
-            new AudioTranscriptionWorker(mixedFile).execute();
+            new AudioTranscriptionWorker(lastRecordedMicFile, lastRecordedSpeakerFile).execute();
         } catch (Exception ex) {
             logger.error("Error while mixing audio files", ex);
         }
     }
 
-    public void stopRecording(File audioFile) {
+    public void customUpload(File audioFile) {
         isStoppingInProgress = true;
         recordButton.setText("Converting. Please wait...");
         recordButton.setEnabled(false);
-        new RecorderForm.AudioTranscriptionWorker(audioFile).execute();
+        lastRecordedSpeakerFile = audioFile;
+        transcribe();
     }
     public void playClickSound() {
         if (configManager.isStopSoundEnabled()) {
@@ -617,22 +620,34 @@ public class RecorderForm extends javax.swing.JPanel {
         }
     }
     private class AudioTranscriptionWorker extends SwingWorker<String, Void> {
-        private final File audioFile;
-        public AudioTranscriptionWorker(File audioFile) {
-            this.audioFile = audioFile;
+        private final File micFile;
+        private final File speakerFile;
+        public AudioTranscriptionWorker(File micFile, File speakerFile) {
+            this.micFile = micFile;
+            this.speakerFile = speakerFile;
         }
         @Override
         protected String doInBackground() {
             try {
                 if (configManager.getWhisperServer().equals("OpenAI")) {
                     logger.info("Transcribing audio using OpenAI");
-                    return whisperClient.transcribe(audioFile);
+                    String micText = whisperClient.transcribe(micFile);
+                    String speakerText = whisperClient.transcribe(speakerFile);
+
+                    List<SrtMerger.SubtitleBlock> micSubTitleBlocks = SrtMerger.parseSrt(micText);
+                    List<SrtMerger.SubtitleBlock> speakerSubTitleBlocks = SrtMerger.parseSrt(speakerText);
+                    List<SrtMerger.SubtitleBlock> subtitleBlocks = SrtMerger.mergeSrtBlocks(micSubTitleBlocks, speakerSubTitleBlocks, 0l);
+                    return subtitleBlocks.stream().map(subtitleBlock -> subtitleBlock.text).reduce("", (a, b) -> a + b);
+
                 } else if (configManager.getWhisperServer().equals("Faster-Whisper")) {
                     logger.info("Transcribing audio using Faster-Whisper");
-                    return fasterWhisperTranscribeClient.transcribe(audioFile);
+                    return fasterWhisperTranscribeClient.transcribe(micFile);
                 } else if (configManager.getWhisperServer().equals("Open WebUI")) {
                     logger.info("Transcribing audio using Open WebUI");
-                    return openWebUITranscribeClient.transcribeAudio(audioFile);
+                    return openWebUITranscribeClient.transcribeAudio(micFile);
+                } else if (configManager.getWhisperServer().equals("LiteLLM")) {
+                    logger.info("Transcribing audio using LiteLLM");
+                    return liteLLMRecordingClient.transcribeAudio(micFile);
                 } else {
                     logger.error("Unknown Whisper server: " + configManager.getWhisperServer());
                     Notificationmanager.getInstance().showNotification(ToastNotification.Type.ERROR,

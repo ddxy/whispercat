@@ -1,10 +1,7 @@
 package org.whispercat.postprocessing;
 
-import com.formdev.flatlaf.extras.FlatSVGIcon;
 import org.whispercat.*;
-import org.whispercat.postprocessing.clients.OpenWebUIModelsResponse;
-import org.whispercat.postprocessing.clients.OpenWebUIProcessClient;
-import org.whispercat.postprocessing.clients.ElevenLabsVoiceClient;
+import org.whispercat.postprocessing.clients.*;
 import org.whispercat.recording.RecorderForm;
 
 import javax.swing.*;
@@ -13,12 +10,9 @@ import java.awt.*;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.Transferable;
 import java.awt.event.*;
-import java.io.ByteArrayInputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
-import javazoom.jl.decoder.JavaLayerException;
-import javazoom.jl.player.Player;
 
 // PostProcessingForm now implements ProcessingStepPanelOwner.
 // All previously existing functionality and UI elements remain intact.
@@ -38,10 +32,15 @@ public class PostProcessingForm extends JPanel implements ProcessingStepPanelOwn
     private List<ElevenLabsVoiceClient.VoiceData> elevenLabsVoices = new ArrayList<>();
     // New fields for OpenWebUI-Provider:
     private List<String> openWebUIModelNames = new ArrayList<>();
+
     // New fields for ElevenLabs voices for Synthesizer steps.
     private List<String> elevenLabsVoiceNames = new ArrayList<>();
     private ElevenLabsVoiceClient elevenLabsVoiceClient;
     private OpenWebUIProcessClient openWebUIProcessClient;
+
+    private LiteLLMProcessClient liteLLMProcessClient;
+    private List<String> liteLLMModelNames = new ArrayList<>();
+
 
     public PostProcessingForm(ConfigManager configManager, PostProcessingData existingJson) {
         this.configManager = configManager;
@@ -148,6 +147,12 @@ public class PostProcessingForm extends JPanel implements ProcessingStepPanelOwn
             openWebUIProcessClient = new OpenWebUIProcessClient(configManager);
             loadOpenWebUIModels();
         }
+
+        // Initialize OpenWebUI client if settings are provided.
+        if (!configManager.getLiteLLMServerUrl().isEmpty() || !configManager.getLiteLLMApiKey().isEmpty()) {
+            liteLLMProcessClient = new LiteLLMProcessClient(configManager);
+            loadLiteLLMModels();
+        }
         // Initialize ElevenLabsVoiceClient if API key is set; otherwise show Notification.
         String elevenLabsApiKey = configManager.getProperty("elevenLabsApiKey");
         if (elevenLabsApiKey != null && !elevenLabsApiKey.trim().isEmpty()) {
@@ -189,6 +194,42 @@ public class PostProcessingForm extends JPanel implements ProcessingStepPanelOwn
                     logger.error("Error loading Open WebUI models: ", ex);
                     Notificationmanager.getInstance().showNotification(ToastNotification.Type.ERROR,
                             "Error loading Open WebUI models. See logs.");
+                }
+            }
+        };
+        worker.execute();
+    }
+
+    /**
+     * Loads all models from the Open WebUI server in the background and stores the names in openWebUIModelNames.
+     * Afterwards, all ProcessingStepPanels that currently have "Open WebUI" as provider are updated.
+     */
+    private void loadLiteLLMModels() {
+        SwingWorker<List<String>, Void> worker = new SwingWorker<List<String>, Void>() {
+            @Override
+            protected List<String> doInBackground() throws Exception {
+                LiteLLMModelsResponse liteLLMModelsResponse = liteLLMProcessClient.fetchModels();
+                return liteLLMModelsResponse.getModelIds();
+            }
+            @Override
+            protected void done() {
+                try {
+                    List<String> models = get();
+                    liteLLMModelNames.clear();
+                    liteLLMModelNames.addAll(models);
+                    // Update all ProcessingStepPanels that use "Open WebUI" as provider.
+                    for (Component comp : stepsContainer.getComponents()) {
+                        if (comp instanceof ProcessingStepPanel) {
+                            ProcessingStepPanel panel = (ProcessingStepPanel) comp;
+                            if ("LiteLLM".equals(panel.getProvider())) {
+                                panel.updateModelCombo();
+                            }
+                        }
+                    }
+                } catch (Exception ex) {
+                    logger.error("Error loading Open WebUI models: ", ex);
+                    Notificationmanager.getInstance().showNotification(ToastNotification.Type.ERROR,
+                            "Error loading LiteLLM models. See logs.");
                 }
             }
         };
@@ -329,6 +370,11 @@ public class PostProcessingForm extends JPanel implements ProcessingStepPanelOwn
     @Override
     public List<String> getOpenWebUIModelNames() {
         return openWebUIModelNames;
+    }
+
+    @Override
+    public List<String> liteLLMModelNames() {
+        return liteLLMModelNames;
     }
 
     @Override

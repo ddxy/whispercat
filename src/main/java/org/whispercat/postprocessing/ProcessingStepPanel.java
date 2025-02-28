@@ -23,6 +23,11 @@ import java.io.ByteArrayInputStream;
 public class ProcessingStepPanel extends JPanel {
     private final ProcessingStepPanelOwner owner;
     private String storedModel = "";
+    private String originalProvider = null; // remembers initially loaded provider for Prompt
+    private String storedSynthesizerVoice = null;
+    private String storedSynthesizerProvider = ""; // default provider for synthesizer
+    private String originalSynthProvider = null; // remembers initially loaded provider for Synthesizer
+
     private JComboBox<String> typeCombo;
     private JPanel promptPanel;
     private JPanel replacementPanel;
@@ -33,13 +38,12 @@ public class ProcessingStepPanel extends JPanel {
     // Provider and Model Combo; now including Open WebUI as an option.
     private JComboBox<String> providerCombo;
     private JComboBox<String> modelCombo;
-    // New combo for the synthesizer provider: now offering both ElevenLabs and OpenAI.
+    // Synthesizer provider and voice combo.
     private JComboBox<String> synthesizerProviderCombo;
     private JComboBox<String> synthesizerVoiceCombo;
-    private String storedSynthesizerVoice = null;
-    private String storedSynthesizerProvider = "ElevenLabs"; // Default provider for synthesizer steps
+
     // Play/Stop button for sample playback.
-    private javax.swing.JButton playButton;
+    private JButton playButton;
     private JTextField textToReplaceField;
     private JTextField replacementTextField;
     private Border defaultTextAreaBorder;
@@ -49,9 +53,7 @@ public class ProcessingStepPanel extends JPanel {
     // For playing sample audio.
     private Player audioPlayer;
     private SwingWorker<Void, Void> playbackWorker;
-
     // Static array for OpenAI voices (predefined)
-    private static final String[] OPENAI_VOICES = {"alloy", "ash", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer"};
 
     // Constructor now requires a ProcessingStepPanelOwner reference to avoid circular dependencies.
     public ProcessingStepPanel(ProcessingStepPanelOwner owner) {
@@ -70,9 +72,9 @@ public class ProcessingStepPanel extends JPanel {
         typePanel.add(typeCombo);
         topPanel.add(Box.createVerticalStrut(10));
         topPanel.add(typePanel, BorderLayout.WEST);
-        javax.swing.JButton removeButton = new javax.swing.JButton();
+        JButton removeButton = new JButton();
         // Using FlatSVGIcon for the trash icon.
-        javax.swing.Icon trashIcon = new FlatSVGIcon("icon/svg/trash.svg", 16, 16);
+        Icon trashIcon = new FlatSVGIcon("icon/svg/trash.svg", 16, 16);
         removeButton.setIcon(trashIcon);
         removeButton.setToolTipText("Remove this Processing Step");
         removeButton.addActionListener((ActionEvent e) -> {
@@ -88,13 +90,13 @@ public class ProcessingStepPanel extends JPanel {
         JLabel providerLabel = new JLabel("Provider:");
         providerPanel.add(providerLabel);
         providerPanel.add(Box.createHorizontalStrut(5));
-        providerCombo = new JComboBox<>(new String[]{"OpenAI", "Open WebUI"});
+        providerCombo = new JComboBox<>(new String[]{"OpenAI", "Open WebUI", "LiteLLM"});
         providerPanel.add(providerCombo);
         providerPanel.add(Box.createHorizontalStrut(15));
         JLabel modelLabel = new JLabel("Model:");
         providerPanel.add(modelLabel);
         providerPanel.add(Box.createHorizontalStrut(5));
-        modelCombo = new JComboBox<>(new String[]{"gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"});
+        modelCombo = new JComboBox<>();
         providerPanel.add(modelCombo);
         providerCombo.addItemListener(e -> {
             if (e.getStateChange() == ItemEvent.SELECTED) {
@@ -171,17 +173,12 @@ public class ProcessingStepPanel extends JPanel {
         // Add an action listener to the play button (only works for ElevenLabs provider)
         playButton.addActionListener(e -> onPlayButtonClicked());
         synthSubPanel.add(playButton);
-        // Add an item listener to the synthesizer provider to update the voice list and toggle the play button
+        // When the synthesizer provider changes, update voice list accordingly.
         synthesizerProviderCombo.addItemListener(e -> {
             if (e.getStateChange() == ItemEvent.SELECTED) {
                 updateSynthesizerVoiceCombo();
-                // Hide play button when provider is OpenAI; show when ElevenLabs is selected.
                 String selectedProvider = (String) synthesizerProviderCombo.getSelectedItem();
-                if ("OpenAI".equals(selectedProvider)) {
-                    playButton.setVisible(false);
-                } else {
-                    playButton.setVisible(true);
-                }
+                playButton.setVisible("ElevenLabs".equals(selectedProvider));
             }
         });
         synthesizerPanel.add(synthSubPanel);
@@ -191,10 +188,20 @@ public class ProcessingStepPanel extends JPanel {
         updateFieldsVisibility();
         typeCombo.addActionListener(e -> updateFieldsVisibility());
         // Attach text area forwarder listeners (the method is static)
-        PostProcessingForm.attachTextAreaForwarder(systemPromptArea, null); // The scroll forwarder is not needed inside the panel as the parent scroll is managed by the owner.
+        PostProcessingForm.attachTextAreaForwarder(systemPromptArea, null);
         PostProcessingForm.attachTextAreaForwarder(userPromptArea, null);
         setPlaceholder(systemPromptArea, SYSTEM_PROMPT_PLACEHOLDER, defaultFont);
         setPlaceholder(userPromptArea, USER_PROMPT_PLACEHOLDER, defaultFont);
+
+        // If no step data is loaded initially, ensure defaults for both Prompt and Synthesizer.
+        if (originalProvider == null) {
+            originalProvider = (String) providerCombo.getSelectedItem();
+            updateModelCombo();
+        }
+        if (originalSynthProvider == null) {
+            originalSynthProvider = (String) synthesizerProviderCombo.getSelectedItem();
+            updateSynthesizerVoiceCombo();
+        }
     }
 
     @Override
@@ -221,7 +228,6 @@ public class ProcessingStepPanel extends JPanel {
             replacementPanel.setVisible(false);
             synthesizerPanel.setVisible(true);
             updateSynthesizerVoiceCombo();
-            // Notify if ElevenLabs API key is missing (only when provider is ElevenLabs)
             if ("ElevenLabs".equals(synthesizerProviderCombo.getSelectedItem()) &&
                     (owner.getConfigManager().getProperty("elevenLabsApiKey") == null ||
                             owner.getConfigManager().getProperty("elevenLabsApiKey").trim().isEmpty())) {
@@ -235,81 +241,80 @@ public class ProcessingStepPanel extends JPanel {
 
     /**
      * Updates the model combo for "Prompt" type based on the selected provider.
+     * This implementation uses ProviderModelMapping to retrieve the models.
+     * If the current provider equals originalProvider then storedModel is considered.
      */
     public void updateModelCombo() {
         String provider = (String) providerCombo.getSelectedItem();
-        String previousSelection = (storedModel != null) ? storedModel : "";
+        String defaultModel;
+        if (provider.equals(originalProvider)) {
+            defaultModel = ProviderModelMapping.getDefaultModel(provider, owner, storedModel);
+        } else {
+            defaultModel = ProviderModelMapping.getDefaultModel(provider, owner, "");
+        }
         modelCombo.removeAllItems();
-        if ("Open WebUI".equals(provider)) {
-            if (owner.getOpenWebUIModelNames() == null || owner.getOpenWebUIModelNames().isEmpty()) {
-                if (!previousSelection.isEmpty()) {
-                    modelCombo.addItem(previousSelection);
-                    modelCombo.setSelectedItem(previousSelection);
-                } else {
-                    modelCombo.addItem("No models loaded");
-                }
-                return;
+        java.util.List<String> models = ProviderModelMapping.getModels(provider, owner);
+        if ("Open WebUI".equals(provider) && models.isEmpty()) {
+            if (!defaultModel.isEmpty()) {
+                modelCombo.addItem(defaultModel);
+                modelCombo.setSelectedItem(defaultModel);
+            } else {
+                modelCombo.addItem("No models loaded");
             }
-            boolean loadedContainsPrevious = false;
-            for (String name : owner.getOpenWebUIModelNames()) {
-                modelCombo.addItem(name);
-                if (name.equals(previousSelection)) {
-                    loadedContainsPrevious = true;
-                }
-            }
-            if (!previousSelection.isEmpty() && !loadedContainsPrevious) {
-                modelCombo.insertItemAt(previousSelection, 0);
-                modelCombo.setSelectedItem(previousSelection);
-                Notificationmanager.getInstance().showNotification(ToastNotification.Type.WARNING,
-                        "The previously selected Open WebUI model \"" + previousSelection + "\" is not available anymore.");
-            } else if (loadedContainsPrevious) {
-                modelCombo.setSelectedItem(previousSelection);
-            }
-        } else { // OpenAI
-            String previous = previousSelection;
-            String[] openaiModels = {"gpt-4o-mini", "gpt-4o", "gpt-3.5-turbo"};
-            for (String m : openaiModels) {
-                modelCombo.addItem(m);
-            }
-            for (int i = 0; i < modelCombo.getItemCount(); i++) {
-                if (modelCombo.getItemAt(i).equals(previous)) {
-                    modelCombo.setSelectedItem(previous);
-                    break;
+            return;
+        }
+        for (String model : models) {
+            modelCombo.addItem(model);
+        }
+        if (models.contains(defaultModel)) {
+            modelCombo.setSelectedItem(defaultModel);
+        } else {
+            if (provider.equals(originalProvider) && !defaultModel.isEmpty()) {
+                modelCombo.insertItemAt(defaultModel, 0);
+                modelCombo.setSelectedItem(defaultModel);
+                if ("Open WebUI".equals(provider)) {
+                    Notificationmanager.getInstance().showNotification(ToastNotification.Type.WARNING,
+                            "The previously selected Open WebUI model \"" + defaultModel + "\" is not available anymore.");
                 }
             }
         }
     }
 
     /**
-     * Updates the synthesizer voice combo using the voice data loaded in the parent.
-     * If no voices are loaded yet (for ElevenLabs) or if the provider is OpenAI, then a predefined list is used.
+     * Updates the synthesizer voice combo using SynthesizerProviderMapping.
+     * If the current synthesizer provider equals originalSynthProvider, storedSynthesizerVoice is taken into account.
+     * Otherwise, only the standard voices for the provider are shown.
      */
     public void updateSynthesizerVoiceCombo() {
-        synthesizerVoiceCombo.removeAllItems();
-        String selectedProvider = (String) synthesizerProviderCombo.getSelectedItem();
-        if ("OpenAI".equals(selectedProvider)) {
-            // Use predefined OpenAI voices
-            for (String voice : OPENAI_VOICES) {
-                synthesizerVoiceCombo.addItem(voice);
-            }
-            if (storedSynthesizerVoice != null) {
-                synthesizerVoiceCombo.setSelectedItem(storedSynthesizerVoice);
-            }
+        String synthProvider = (String) synthesizerProviderCombo.getSelectedItem();
+        String defaultVoice;
+        if (synthProvider.equals(originalSynthProvider)) {
+            defaultVoice = SynthesizerProviderMapping.getDefaultVoice(synthProvider, owner, storedSynthesizerVoice);
         } else {
-            // ElevenLabs provider: use voices loaded from the parent's ElevenLabs voices list.
-            if (owner.getElevenLabsVoices() == null || owner.getElevenLabsVoices().isEmpty()) {
-                if (storedSynthesizerVoice != null && !storedSynthesizerVoice.trim().isEmpty()) {
-                    synthesizerVoiceCombo.addItem(storedSynthesizerVoice);
-                } else {
-                    synthesizerVoiceCombo.addItem("Loading voices...");
-                }
-            } else {
-                for (org.whispercat.postprocessing.clients.ElevenLabsVoiceClient.VoiceData voice : owner.getElevenLabsVoices()) {
-                    synthesizerVoiceCombo.addItem(voice.toString());
-                }
-                if (storedSynthesizerVoice != null) {
-                    synthesizerVoiceCombo.setSelectedItem(storedSynthesizerVoice);
-                }
+            defaultVoice = SynthesizerProviderMapping.getDefaultVoice(synthProvider, owner, "");
+        }
+        synthesizerVoiceCombo.removeAllItems();
+        java.util.List<String> voices = SynthesizerProviderMapping.getVoices(synthProvider, owner);
+
+        for (String voice : voices) {
+            synthesizerVoiceCombo.addItem(voice);
+        }
+
+        boolean voiceFound = false;
+        for (int i = 0; i < synthesizerVoiceCombo.getItemCount(); i++) {
+            if (synthesizerVoiceCombo.getItemAt(i).equals(defaultVoice)) {
+                voiceFound = true;
+                break;
+            }
+        }
+        if (voiceFound) {
+            synthesizerVoiceCombo.setSelectedItem(defaultVoice);
+        } else {
+            if (synthProvider.equals(originalSynthProvider) && defaultVoice != null && !defaultVoice.trim().isEmpty()) {
+                synthesizerVoiceCombo.insertItemAt(defaultVoice, 0);
+                synthesizerVoiceCombo.setSelectedItem(defaultVoice);
+            } else if (synthesizerVoiceCombo.getItemCount() > 0) {
+                synthesizerVoiceCombo.setSelectedIndex(0);
             }
         }
     }
@@ -325,11 +330,11 @@ public class ProcessingStepPanel extends JPanel {
 
     /**
      * Returns the currently chosen provider.
+     * For Synthesizer steps, the provider is taken from synthesizerProviderCombo.
      *
      * @return the provider as a String.
      */
     public String getProvider() {
-        // For Synthesizer steps, the provider is taken from the synthesizer provider combo.
         if ("Synthesizer".equals(getType())) {
             return (String) synthesizerProviderCombo.getSelectedItem();
         }
@@ -338,6 +343,8 @@ public class ProcessingStepPanel extends JPanel {
 
     /**
      * Loads data from the provided ProcessingStepData and updates the fields.
+     * For both Prompt and Synthesizer, if the voice/model specified does not exist,
+     * it is added only during the initial load.
      *
      * @param stepData the data for this processing step.
      */
@@ -345,7 +352,19 @@ public class ProcessingStepPanel extends JPanel {
         typeCombo.setSelectedItem(stepData.type);
         if ("Prompt".equals(stepData.type)) {
             storedModel = stepData.model;
+            originalProvider = stepData.provider;
             providerCombo.setSelectedItem(stepData.provider);
+            updateModelCombo();
+            boolean modelFound = false;
+            for (int i = 0; i < modelCombo.getItemCount(); i++) {
+                if (modelCombo.getItemAt(i).equals(stepData.model)) {
+                    modelFound = true;
+                    break;
+                }
+            }
+            if (!modelFound && stepData.model != null && !stepData.model.trim().isEmpty()) {
+                modelCombo.addItem(stepData.model);
+            }
             modelCombo.setSelectedItem(stepData.model);
             if (stepData.systemPrompt != null && !stepData.systemPrompt.trim().isEmpty()) {
                 systemPromptArea.setText(stepData.systemPrompt);
@@ -365,9 +384,9 @@ public class ProcessingStepPanel extends JPanel {
             textToReplaceField.setText(stepData.textToReplace);
             replacementTextField.setText(stepData.replacementText);
         } else if ("Synthesizer".equals(stepData.type)) {
-            // Store the saved values for later re-selection.
             storedSynthesizerVoice = stepData.voiceId;
-            storedSynthesizerProvider = stepData.ttsProvider != null ? stepData.ttsProvider : "ElevenLabs";
+            storedSynthesizerProvider = (stepData.ttsProvider != null) ? stepData.ttsProvider : "ElevenLabs";
+            originalSynthProvider = storedSynthesizerProvider;
             synthesizerProviderCombo.setSelectedItem(storedSynthesizerProvider);
             updateSynthesizerVoiceCombo();
             if (storedSynthesizerVoice != null) {
@@ -450,11 +469,9 @@ public class ProcessingStepPanel extends JPanel {
      * For OpenAI provider this button is hidden.
      */
     private void onPlayButtonClicked() {
-        // Only perform playback if provider is ElevenLabs
         if (!"ElevenLabs".equals(synthesizerProviderCombo.getSelectedItem())) {
             return;
         }
-        // If not in playback mode, then try to play.
         if (playButton.getText().equals("Play")) {
             playButton.setText("Stop");
             String selected = (String) synthesizerVoiceCombo.getSelectedItem();
@@ -464,7 +481,6 @@ public class ProcessingStepPanel extends JPanel {
                 playButton.setText("Play");
                 return;
             }
-            // Search for the VoiceData that matches the selected string.
             org.whispercat.postprocessing.clients.ElevenLabsVoiceClient.VoiceData selectedVoiceData = null;
             for (org.whispercat.postprocessing.clients.ElevenLabsVoiceClient.VoiceData voice : owner.getElevenLabsVoices()) {
                 if (voice.toString().equals(selected)) {
@@ -494,13 +510,14 @@ public class ProcessingStepPanel extends JPanel {
                     }
                     return null;
                 }
+
                 @Override
                 protected void done() {
                     playButton.setText("Play");
                 }
             };
             playbackWorker.execute();
-        } else { // Stop button clicked.
+        } else {
             if (audioPlayer != null) {
                 audioPlayer.close();
             }
@@ -534,7 +551,7 @@ public class ProcessingStepPanel extends JPanel {
         } else if ("Synthesizer".equals(stepData.type)) {
             stepData.ttsProvider = (String) synthesizerProviderCombo.getSelectedItem();
             stepData.voiceId = (String) synthesizerVoiceCombo.getSelectedItem();
-            if("OpenAI".equals(stepData.ttsProvider)) {
+            if ("OpenAI".equals(stepData.ttsProvider)) {
                 stepData.ttsModel = "tts-1";
             } else {
                 stepData.ttsModel = "eleven_multilingual_v2";
@@ -545,8 +562,7 @@ public class ProcessingStepPanel extends JPanel {
 
     /**
      * Helper method to set a placeholder into a JTextArea.
-     * When the text area is unfocused and empty, the placeholder is displayed in italic font.
-     * When the user focuses the field and the text equals the placeholder, it is cleared.
+     * When unfocused and empty, the placeholder is displayed in italic; when focused and matching the placeholder, it is cleared.
      *
      * @param textArea    the JTextArea
      * @param placeholder the placeholder text
@@ -567,6 +583,7 @@ public class ProcessingStepPanel extends JPanel {
                     textArea.setFont(defaultFont);
                 }
             }
+
             @Override
             public void focusLost(FocusEvent e) {
                 if (textArea.getText().trim().isEmpty()) {

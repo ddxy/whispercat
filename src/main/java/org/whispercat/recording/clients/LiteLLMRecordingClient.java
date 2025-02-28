@@ -9,6 +9,8 @@ import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
+import org.apache.http.entity.mime.HttpMultipartMode;
+import org.apache.http.entity.mime.MultipartEntityBuilder;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.apache.logging.log4j.LogManager;
@@ -26,12 +28,12 @@ import java.nio.file.Files;
  * Client class for interacting with the OpenAI Text-to-Speech API.
  * This client takes a text input and returns an audio file.
  */
-public class OpenAIRecordingClient {
-    private static final Logger logger = LogManager.getLogger(OpenAIRecordingClient.class);
+public class LiteLLMRecordingClient {
+    private static final Logger logger = LogManager.getLogger(LiteLLMRecordingClient.class);
 
     // Base URL for the OpenAI TTS API.
-    private static final String BASE_API_URL = "https://api.openai.com/v1/audio/speech";
-    private static final String API_URL = "https://api.openai.com/v1/chat/completions";
+    private static final String BASE_API_URL = "/v1/audio/speech";
+    private static final String API_URL = "/v1/chat/completions";
 
     private final ConfigManager configManager;
     // ObjectMapper for JSON serialization/deserialization.
@@ -42,7 +44,7 @@ public class OpenAIRecordingClient {
      *
      * @param configManager The configuration manager containing the API key.
      */
-    public OpenAIRecordingClient(ConfigManager configManager) {
+    public LiteLLMRecordingClient(ConfigManager configManager) {
         this.configManager = configManager;
     }
 
@@ -57,9 +59,12 @@ public class OpenAIRecordingClient {
      * @throws IOException if an error occurs during the API call.
      */
     public String processText(String systemPrompt, String userPrompt, String model) throws IOException {
+        // log liteLLM systemPrmopt userPrompt model
+        logger.info("LiteLLM systemPrompt and userPrompt and model: " + systemPrompt + " " + userPrompt + " " + model);
+
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             HttpPost httpPost = new HttpPost(API_URL);
-            httpPost.setHeader("Authorization", "Bearer " + configManager.getApiKey());
+            httpPost.setHeader("Authorization", "Bearer " + configManager.getLiteLLMApiKey());
             httpPost.setHeader("Content-Type", "application/json");
 
             // Build the JSON payload using Jackson.
@@ -97,7 +102,7 @@ public class OpenAIRecordingClient {
                     // Parse error message from response.
                     JsonNode errorNode = mapper.readTree(responseString);
                     String errorMessage = errorNode.path("error").path("message").asText();
-                    throw new IOException("Error from OpenAI API: " + errorMessage);
+                    throw new IOException("Error from LiteLLM API: " + errorMessage);
                 }
 
                 // Parse the successful response to get the completion text.
@@ -114,67 +119,56 @@ public class OpenAIRecordingClient {
     }
 
     /**
-     * Synthesizes speech from the provided text using the OpenAI TTS API.
+     * Transcribes the given audio file by sending it as multipart/form-data to the OpenWebUI audio transcriptions endpoint.
+     * The base URL is obtained from the ConfigManager.
      *
-     * @param text The text to be converted to speech.
-     * @return A File containing the audio data.
-     * @throws IOException if an error occurs during the API call or file writing.
+     * The request must include the Bearer API key and send the audio file in the "file" form field.
+     * The response is expected to contain a "text" field which is returned.
+     *
+     * @param audioFile the audio file (e.g., a .wav file) to be transcribed.
+     * @return the transcribed text.
+     * @throws IOException if an error occurs during the API call.
      */
-    public File synthesize(String text, String modelName, String voice) throws IOException {
-        // Create the JSON payload.
-        JsonNode jsonPayloadNode = objectMapper.createObjectNode()
-                .put("model", modelName)
-                .put("input", text)
-                .put("voice", voice);
+    public String transcribeAudio(File audioFile) throws IOException {
+        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
+            // Build URL from ConfigManager.
+            String baseUrl = configManager.getLiteLLMServerUrl().trim();
+            if (!baseUrl.toLowerCase().startsWith("http://") && !baseUrl.toLowerCase().startsWith("https://")) {
+                baseUrl = "https://" + baseUrl;
+            }
+            if (baseUrl.endsWith("/")) {
+                baseUrl = baseUrl.substring(0, baseUrl.length() - 1);
+            }
+            String url = baseUrl + "/v1/audio/transcriptions";
 
-        String jsonPayload = objectMapper.writeValueAsString(jsonPayloadNode);
+            HttpPost httpPost = new HttpPost(url);
+            httpPost.setHeader("Accept", "application/json");
+            httpPost.setHeader("Authorization", "Bearer " + configManager.getLiteLLMApiKey());
 
-        if (configManager.getApiKey().isEmpty()) {
-            Notificationmanager.getInstance().showNotification(
-                    ToastNotification.Type.ERROR,
-                    "OpenAI API Key is missing"
-            );
-            return null;
-        }
+            MultipartEntityBuilder builder = MultipartEntityBuilder.create();
+            builder.setMode(HttpMultipartMode.BROWSER_COMPATIBLE);
+            builder.addTextBody("model", "whisper");
+            builder.addBinaryBody("file", audioFile, ContentType.create("audio/wav"), audioFile.getName());
+            HttpEntity multipart = builder.build();
+            httpPost.setEntity(multipart);
 
-        // Create the HTTP POST request.
-        HttpPost httpPost = new HttpPost(BASE_API_URL);
-        httpPost.setHeader("Authorization", "Bearer " + configManager.getApiKey());
-        httpPost.setHeader("Content-Type", "application/json");
-        httpPost.setEntity(new StringEntity(jsonPayload, ContentType.APPLICATION_JSON));
-
-        // Execute the request.
-        try (CloseableHttpClient httpClient = HttpClients.createDefault();
-             CloseableHttpResponse response = httpClient.execute(httpPost)) {
-
-            int statusCode = response.getStatusLine().getStatusCode();
-            HttpEntity responseEntity = response.getEntity();
-            byte[] responseBytes = responseEntity != null
-                    ? responseEntity.getContent().readAllBytes()
-                    : new byte[0];
-
-            if (statusCode == 200) {
-                // Save the audio bytes to a temporary file.
-                File audioFile = File.createTempFile("openai_output", ".mp3");
-                Files.write(audioFile.toPath(), responseBytes);
-                logger.info("Audio file saved to: {}", audioFile.getAbsolutePath());
-                Notificationmanager.getInstance().showNotification(
-                        ToastNotification.Type.SUCCESS,
-                        "Speech synthesis successful. Audio saved."
-                );
-                return audioFile;
-            } else {
-                // Parse the error message from the response.
-                String responseString = new String(responseBytes, StandardCharsets.UTF_8);
-                JsonNode jsonNode = objectMapper.readTree(responseString);
-                String errorMessage = jsonNode.path("error").path("message").asText();
-                logger.error("Error from OpenAI API: {}", errorMessage);
-                Notificationmanager.getInstance().showNotification(
-                        ToastNotification.Type.ERROR,
-                        "Error from OpenAI API. See logs for details."
-                );
-                throw new IOException("Error from OpenAI API: " + errorMessage);
+            try (CloseableHttpResponse response = httpClient.execute(httpPost)) {
+                int statusCode = response.getStatusLine().getStatusCode();
+                String responseString = new String(response.getEntity().getContent().readAllBytes(), StandardCharsets.UTF_8);
+                ObjectMapper mapper = new ObjectMapper();
+                if (statusCode != 200) {
+                    throw new IOException("Error from transcription API: " + responseString);
+                }
+                JsonNode jsonResponse = mapper.readTree(responseString);
+                if (jsonResponse.has("text")) {
+                    return jsonResponse.path("text").asText();
+                } else if (jsonResponse.isTextual()) {
+                    return jsonResponse.asText();
+                }
             }
         }
+        return "";
     }
+
+
 }

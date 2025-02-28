@@ -11,6 +11,9 @@ import org.whispercat.postprocessing.clients.ElevenLabsVoiceClient;
 public interface ProcessingStepPanelOwner {
     ConfigManager getConfigManager();
     List<String> getOpenWebUIModelNames();
+
+    List<String> liteLLMModelNames();
+
     List<ElevenLabsVoiceClient.VoiceData> getElevenLabsVoices();
     ElevenLabsVoiceClient getElevenLabsClient();
     void scrollToComponent(Component comp);

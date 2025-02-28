@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 
 public class SettingsForm extends JPanel {
     private static final Logger logger = LogManager.getLogger(SettingsForm.class);
+
     // Existing components
     private final KeyCombinationTextField keyCombinationTextField;
     private final JButton clearKeybindButton;
@@ -39,49 +40,53 @@ public class SettingsForm extends JPanel {
     private AudioFormat format;
     private TargetDataLine line;
     private TestWorker testWorker;
-
     private final JLabel whisperServerLabel;
     private final JComboBox<String> whisperServerComboBox;
     private final JPanel whisperSettingsPanel;
     private final JPanel fasterWhispererPanel;
-    private final JPanel groqPanel;
+    private final JPanel grokPanel;
     private final JPanel openaiPanel;
     private final JPanel openWebUIPanel;
-
+    private final JPanel liteLLMPanel;
     private final JTextField whisperServerUrlField;
     private final JComboBox<String> fasterWhisperModelComboBox;
     private final JComboBox<String> fasterWhisperLanguageComboBox;
+    // Note: The old API Settings fields have been removed and replaced by new ones below.
+    // private JTextField openaiApiKeyField;
+    // private JTextField grokApiKeyField;
+    // private JTextField openwebUIApiKeyField;
+    // private JTextField openwebUIApiURLField;
+    // private JTextField liteLLMApiKeyField;
+    // private JTextField liteLLMApiURLField;
 
-    private final JTextField groqApiKeyField;
-    private final JComboBox<String> groqModelComboBox;
-
-    private JTextField openaiApiKeyField;
-
-    private JTextField grokApiKeyField;
-
-    private JTextField openwebUIApiKeyField;
-    private JTextField openwebUIApiURLField;
+    // New API Settings fields used in the new API Settings ComboBox with CardLayout
+    private JTextField openaiApiKeyFieldNew;
+    private JTextField grokApiKeyFieldNew;
+    private JTextField openwebUIApiKeyFieldNew;
+    private JTextField openwebUIApiURLFieldNew;
+    private JTextField liteLLMApiKeyFieldNew;
+    private JTextField liteLLMApiURLFieldNew;
+    private JComboBox<String> apiSettingsComboBox;
 
     // Fields for ElevenLabs Synthesizer settings
     private JTextField elevenLabsApiKeyField;
 
     private static final String SERVER_FASTER_WHISPER = "Faster-Whisper";
     private static final String OPEN_WEB_UI = "Open WebUI";
-    private static final String SERVER_GROQ = "Groq";
+    private static final String LITE_LLM = "LiteLLM";
+    private static final String SERVER_GROK = "Grok";
     private static final String SERVER_OPENAI = "OpenAI";
 
     private final Map<String, List<String>> fastModelLanguages;
 
     public SettingsForm(ConfigManager configManager) {
         this.configManager = configManager;
-
         volumeBar = new JProgressBar(0, 100);
         volumeBar.setStringPainted(true);
         volumeBar.setVisible(false);
         stopTestButton = new JButton("Stop Test");
         stopTestButton.setVisible(false);
         stopTestButton.addActionListener(e -> stopAudioTest());
-
         ObjectMapper mapper = new ObjectMapper();
         try (InputStream is = getClass().getResourceAsStream("/fasterwhispermodels.json")) {
             FasterWhisperModelsResponse response = mapper.readValue(is, FasterWhisperModelsResponse.class);
@@ -104,7 +109,6 @@ public class SettingsForm extends JPanel {
 
         JPanel contentPanel = new JPanel(new GridBagLayout());
         setBorder(BorderFactory.createEmptyBorder(60, 20, 10, 10));
-
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
         gbc.fill = GridBagConstraints.HORIZONTAL;
@@ -241,116 +245,161 @@ public class SettingsForm extends JPanel {
         gbc.anchor = GridBagConstraints.WEST;
         contentPanel.add(stopSoundSwitch, gbc);
 
+        // ===== New API Settings: Refactored similar to Choose Whisper Server =====
         row++;
-
-        JPanel apiSettingsPanel = new JPanel(new GridBagLayout());
-        apiSettingsPanel.setBorder(BorderFactory.createTitledBorder("API Settings"));
-        GridBagConstraints apiGbc = new GridBagConstraints();
-        apiGbc.insets = new Insets(5, 5, 5, 5);
-        apiGbc.fill = GridBagConstraints.HORIZONTAL;
+        JPanel apiSettingsContainerPanel = new JPanel(new GridBagLayout());
+        apiSettingsContainerPanel.setBorder(BorderFactory.createTitledBorder("API Settings"));
+        GridBagConstraints apiSettingsGbc = new GridBagConstraints();
+        apiSettingsGbc.insets = new Insets(5, 5, 5, 5);
+        apiSettingsGbc.fill = GridBagConstraints.HORIZONTAL;
         int apiRow = 0;
 
-// ----- OpenAI API Key -----
-        apiGbc.gridx = 0;
-        apiGbc.gridy = apiRow;
-        apiGbc.gridwidth = 1;
-        apiGbc.weightx = 0;
-        apiGbc.anchor = GridBagConstraints.EAST;
-        apiSettingsPanel.add(new JLabel("OpenAI API Key:"), apiGbc);
-        openaiApiKeyField = new JTextField(20);
-        apiGbc.gridx = 1;
-        apiGbc.gridy = apiRow;
-        apiGbc.gridwidth = 2;
-        apiGbc.weightx = 1.0;
-        apiGbc.anchor = GridBagConstraints.WEST;
-        apiSettingsPanel.add(openaiApiKeyField, apiGbc);
-
-        apiRow++;
-// ----- Separator between OpenAI and Grok -----
-        JSeparator grokSeperator = new JSeparator();
-        grokSeperator.setForeground(Color.GRAY);
-        grokSeperator.setMinimumSize(new Dimension(0, 2));
-
-        apiGbc.gridx = 0;
-        apiGbc.gridy = apiRow;
-        apiGbc.gridwidth = 3;
-        apiGbc.fill = GridBagConstraints.HORIZONTAL;
-        apiSettingsPanel.add(grokSeperator, apiGbc);
-        apiGbc.fill = GridBagConstraints.HORIZONTAL; // reset fill
+        // Add API selection combobox
+        JLabel apiSettingsLabel = new JLabel("Choose API:");
+        apiSettingsGbc.gridx = 0;
+        apiSettingsGbc.gridy = apiRow;
+        apiSettingsGbc.gridwidth = 1;
+        apiSettingsGbc.weightx = 0;
+        apiSettingsLabel.setHorizontalAlignment(SwingConstants.RIGHT);
+        apiSettingsContainerPanel.add(apiSettingsLabel, apiSettingsGbc);
+        String[] apiOptions = {SERVER_OPENAI, "Grok", OPEN_WEB_UI, LITE_LLM};
+        apiSettingsComboBox = new JComboBox<>(apiOptions);
+        apiSettingsGbc.gridx = 1;
+        apiSettingsGbc.gridy = apiRow;
+        apiSettingsGbc.gridwidth = 2;
+        apiSettingsGbc.weightx = 1.0;
+        apiSettingsComboBox.setSelectedIndex(0);
+        apiSettingsContainerPanel.add(apiSettingsComboBox, apiSettingsGbc);
         apiRow++;
 
-// ----- Grok API Key -----
-        apiGbc.gridx = 0;
-        apiGbc.gridy = apiRow;
-        apiGbc.gridwidth = 1;
-        apiGbc.weightx = 0;
-        apiGbc.anchor = GridBagConstraints.EAST;
-        apiSettingsPanel.add(new JLabel("Grok API Key:"), apiGbc);
-        grokApiKeyField = new JTextField(20);
-        apiGbc.gridx = 1;
-        apiGbc.gridy = apiRow;
-        apiGbc.gridwidth = 2;
-        apiGbc.weightx = 1.0;
-        apiGbc.anchor = GridBagConstraints.WEST;
-        apiSettingsPanel.add(grokApiKeyField, apiGbc);
+        // Create a card layout panel for API details
+        JPanel apiSettingsCardPanel = new JPanel(new CardLayout());
+        GridBagConstraints cardGbc = new GridBagConstraints();
+        cardGbc.insets = new Insets(5, 5, 5, 5);
+        cardGbc.fill = GridBagConstraints.HORIZONTAL;
+        cardGbc.gridx = 0;
+        cardGbc.gridy = apiRow;
+        cardGbc.gridwidth = 3;
+        cardGbc.weightx = 1.0;
+        apiSettingsContainerPanel.add(apiSettingsCardPanel, cardGbc);
 
-        apiRow++;
+        // --- Create panels for each API option ---
+        // OpenAI Panel
+        JPanel openaiPanelAPI = new JPanel(new GridBagLayout());
+        GridBagConstraints openaiGbc = new GridBagConstraints();
+        openaiGbc.insets = new Insets(5, 5, 5, 5);
+        openaiGbc.fill = GridBagConstraints.HORIZONTAL;
+        openaiGbc.gridx = 0;
+        openaiGbc.gridy = 0;
+        openaiGbc.gridwidth = 1;
+        openaiGbc.weightx = 0;
+        openaiPanelAPI.add(new JLabel("OpenAI API Key:"), openaiGbc);
+        openaiApiKeyFieldNew = new JTextField(20);
+        openaiGbc.gridx = 1;
+        openaiGbc.gridy = 0;
+        openaiGbc.gridwidth = 2;
+        openaiGbc.weightx = 1.0;
+        openaiPanelAPI.add(openaiApiKeyFieldNew, openaiGbc);
 
-        JSeparator openWebUISeperator = new JSeparator();
-        openWebUISeperator.setForeground(Color.GRAY);
-        openWebUISeperator.setMinimumSize(new Dimension(0, 2));
+        // Grok Panel
+        JPanel grokPanelAPI = new JPanel(new GridBagLayout());
+        GridBagConstraints grokGbc = new GridBagConstraints();
+        grokGbc.insets = new Insets(5, 5, 5, 5);
+        grokGbc.fill = GridBagConstraints.HORIZONTAL;
+        grokGbc.gridx = 0;
+        grokGbc.gridy = 0;
+        grokGbc.gridwidth = 1;
+        grokGbc.weightx = 0;
+        grokPanelAPI.add(new JLabel("Grok API Key:"), grokGbc);
+        grokApiKeyFieldNew = new JTextField(20);
+        grokGbc.gridx = 1;
+        grokGbc.gridy = 0;
+        grokGbc.gridwidth = 2;
+        grokGbc.weightx = 1.0;
+        grokPanelAPI.add(grokApiKeyFieldNew, grokGbc);
 
+        // Open WebUI Panel
+        JPanel openWebUIPanelAPI = new JPanel(new GridBagLayout());
+        GridBagConstraints openWebUIGbc = new GridBagConstraints();
+        openWebUIGbc.insets = new Insets(5, 5, 5, 5);
+        openWebUIGbc.fill = GridBagConstraints.HORIZONTAL;
+        openWebUIGbc.gridx = 0;
+        openWebUIGbc.gridy = 0;
+        openWebUIGbc.gridwidth = 1;
+        openWebUIGbc.weightx = 0;
+        openWebUIPanelAPI.add(new JLabel("OpenWebUI API Key:"), openWebUIGbc);
+        openwebUIApiKeyFieldNew = new JTextField(20);
+        openWebUIGbc.gridx = 1;
+        openWebUIGbc.gridy = 0;
+        openWebUIGbc.gridwidth = 2;
+        openWebUIGbc.weightx = 1.0;
+        openWebUIPanelAPI.add(openwebUIApiKeyFieldNew, openWebUIGbc);
+        openWebUIGbc.gridx = 0;
+        openWebUIGbc.gridy = 1;
+        openWebUIGbc.gridwidth = 1;
+        openWebUIGbc.weightx = 0;
+        openWebUIPanelAPI.add(new JLabel("OpenWebUI Server URL:"), openWebUIGbc);
+        openwebUIApiURLFieldNew = new JTextField(20);
+        openWebUIGbc.gridx = 1;
+        openWebUIGbc.gridy = 1;
+        openWebUIGbc.gridwidth = 2;
+        openWebUIGbc.weightx = 1.0;
+        openWebUIPanelAPI.add(openwebUIApiURLFieldNew, openWebUIGbc);
 
-        apiGbc.gridx = 0;
-        apiGbc.gridy = apiRow;
-        apiGbc.gridwidth = 3;
-        apiGbc.fill = GridBagConstraints.HORIZONTAL;
-        apiSettingsPanel.add(openWebUISeperator, apiGbc);
-        apiGbc.fill = GridBagConstraints.HORIZONTAL;
-        apiRow++;
+        // LiteLLM Panel
+        JPanel liteLLMPanelAPI = new JPanel(new GridBagLayout());
+        GridBagConstraints liteLLMGbc = new GridBagConstraints();
+        liteLLMGbc.insets = new Insets(5, 5, 5, 5);
+        liteLLMGbc.fill = GridBagConstraints.HORIZONTAL;
+        liteLLMGbc.gridx = 0;
+        liteLLMGbc.gridy = 0;
+        liteLLMGbc.gridwidth = 1;
+        liteLLMGbc.weightx = 0;
+        liteLLMPanelAPI.add(new JLabel("LiteLLM API Key:"), liteLLMGbc);
+        liteLLMApiKeyFieldNew = new JTextField(20);
+        liteLLMGbc.gridx = 1;
+        liteLLMGbc.gridy = 0;
+        liteLLMGbc.gridwidth = 2;
+        liteLLMGbc.weightx = 1.0;
+        liteLLMPanelAPI.add(liteLLMApiKeyFieldNew, liteLLMGbc);
+        liteLLMGbc.gridx = 0;
+        liteLLMGbc.gridy = 1;
+        liteLLMGbc.gridwidth = 1;
+        liteLLMGbc.weightx = 0;
+        liteLLMPanelAPI.add(new JLabel("LiteLLM Server URL:"), liteLLMGbc);
+        liteLLMApiURLFieldNew = new JTextField(20);
+        liteLLMGbc.gridx = 1;
+        liteLLMGbc.gridy = 1;
+        liteLLMGbc.gridwidth = 2;
+        liteLLMGbc.weightx = 1.0;
+        liteLLMPanelAPI.add(liteLLMApiURLFieldNew, liteLLMGbc);
 
-// ----- OpenWebUI API Key -----
-        apiGbc.gridx = 0;
-        apiGbc.gridy = apiRow;
-        apiGbc.gridwidth = 1;
-        apiGbc.weightx = 0;
-        apiGbc.anchor = GridBagConstraints.EAST;
-        apiSettingsPanel.add(new JLabel("OpenWebUI API Key:"), apiGbc);
-        openwebUIApiKeyField = new JTextField(20);
-        apiGbc.gridx = 1;
-        apiGbc.gridy = apiRow;
-        apiGbc.gridwidth = 2;
-        apiGbc.weightx = 1.0;
-        apiGbc.anchor = GridBagConstraints.WEST;
-        apiSettingsPanel.add(openwebUIApiKeyField, apiGbc);
+        // Add the individual API panels to the card layout panel
+        apiSettingsCardPanel.add(openaiPanelAPI, SERVER_OPENAI);
+        apiSettingsCardPanel.add(grokPanelAPI, "Grok");
+        apiSettingsCardPanel.add(openWebUIPanelAPI, OPEN_WEB_UI);
+        apiSettingsCardPanel.add(liteLLMPanelAPI, LITE_LLM);
 
-        apiRow++;
+        // Add listener to API settings combobox to switch cards based on selection
+        apiSettingsComboBox.addItemListener(e -> {
+            if (e.getStateChange() == ItemEvent.SELECTED) {
+                CardLayout cl = (CardLayout) apiSettingsCardPanel.getLayout();
+                String selectedApi = (String) apiSettingsComboBox.getSelectedItem();
+                cl.show(apiSettingsCardPanel, selectedApi);
+            }
+        });
+        // Set initial card
+        CardLayout clApi = (CardLayout) apiSettingsCardPanel.getLayout();
+        clApi.show(apiSettingsCardPanel, (String) apiSettingsComboBox.getSelectedItem());
 
-// ----- OpenWebUI Server URL -----
-        apiGbc.gridx = 0;
-        apiGbc.gridy = apiRow;
-        apiGbc.gridwidth = 1;
-        apiGbc.weightx = 0;
-        apiGbc.anchor = GridBagConstraints.EAST;
-        apiSettingsPanel.add(new JLabel("OpenWebUI Server URL:"), apiGbc);
-        openwebUIApiURLField = new JTextField(20);
-        apiGbc.gridx = 1;
-        apiGbc.gridy = apiRow;
-        apiGbc.gridwidth = 2;
-        apiGbc.weightx = 1.0;
-        apiGbc.anchor = GridBagConstraints.WEST;
-        apiSettingsPanel.add(openwebUIApiURLField, apiGbc);
-
-// Add the API Settings panel to the content panel
         gbc.gridx = 0;
         gbc.gridy = row;
         gbc.gridwidth = 4;
         gbc.weightx = 1.0;
-        contentPanel.add(apiSettingsPanel, gbc);
-
+        contentPanel.add(apiSettingsContainerPanel, gbc);
         row++;
 
-        // ===== New Section: Whispering Server Selection and Configuration =====
+        // ===== Whisper Server Settings =====
         // Row: Whisper Server drop-down selection
         row++;
         whisperServerLabel = new JLabel("Choose Whisper Server:");
@@ -360,7 +409,7 @@ public class SettingsForm extends JPanel {
         gbc.weightx = 0;
         gbc.anchor = GridBagConstraints.EAST;
         contentPanel.add(whisperServerLabel, gbc);
-        String[] whisperServers = {SERVER_OPENAI, SERVER_FASTER_WHISPER, OPEN_WEB_UI}; // TODO: Add GROQ
+        String[] whisperServers = {SERVER_OPENAI, SERVER_FASTER_WHISPER, OPEN_WEB_UI, LITE_LLM}; // TODO: Add GROK
         whisperServerComboBox = new JComboBox<>(whisperServers);
         gbc.gridx = 1;
         gbc.gridy = row;
@@ -374,8 +423,7 @@ public class SettingsForm extends JPanel {
         JPanel whisperContainerPanel = new JPanel(new BorderLayout());
         whisperContainerPanel.setBorder(BorderFactory.createTitledBorder("Whisper Server Settings"));
         whisperSettingsPanel = new JPanel(new CardLayout());
-
-        // ----- Initialize Faster-Whisperer Panel (API-Key removal, neue Sprache-Selectbox) -----
+        // ----- Initialize Faster-Whisperer Panel -----
         fasterWhispererPanel = new JPanel(new GridBagLayout());
         GridBagConstraints fwGbc = new GridBagConstraints();
         fwGbc.insets = new Insets(5, 5, 5, 5);
@@ -396,7 +444,6 @@ public class SettingsForm extends JPanel {
         fwGbc.anchor = GridBagConstraints.WEST;
         fasterWhispererPanel.add(whisperServerUrlField, fwGbc);
         fwRow++;
-
         JLabel urlHintLabel = new JLabel("Example: http://localhost:8000");
         urlHintLabel.setFont(new Font("Dialog", Font.ITALIC, 10));
         urlHintLabel.setForeground(Color.GRAY);
@@ -405,7 +452,6 @@ public class SettingsForm extends JPanel {
         fwGbc.gridwidth = 2;
         fwGbc.anchor = GridBagConstraints.WEST;
         fasterWhispererPanel.add(urlHintLabel, fwGbc);
-
         fwRow++;
         // Model selection for Faster-Whisperer
         fwGbc.gridx = 0;
@@ -437,79 +483,76 @@ public class SettingsForm extends JPanel {
         fwGbc.weightx = 1.0;
         fwGbc.anchor = GridBagConstraints.WEST;
         fasterWhispererPanel.add(fasterWhisperLanguageComboBox, fwGbc);
-
         // Action listener to update available languages whenever the model selection changes.
         fasterWhisperModelComboBox.addActionListener(e -> updateFasterWhisperLanguages());
 
-        // ----- Initialize Groq Panel -----
-        groqPanel = new JPanel(new GridBagLayout());
-        GridBagConstraints groqGbc = new GridBagConstraints();
-        groqGbc.insets = new Insets(5, 5, 5, 5);
-        groqGbc.fill = GridBagConstraints.HORIZONTAL;
+        // ----- Initialize Grok Panel -----
+        grokPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints grokGbc2 = new GridBagConstraints();
+        grokGbc2.insets = new Insets(5, 5, 5, 5);
+        grokGbc2.fill = GridBagConstraints.HORIZONTAL;
         int groqRow = 0;
-        groqGbc.gridx = 0;
-        groqGbc.gridy = groqRow;
-        groqGbc.gridwidth = 1;
-        groqGbc.weightx = 0;
-        groqGbc.anchor = GridBagConstraints.EAST;
-        groqPanel.add(new JLabel("Whisper API Key:"), groqGbc);
-        groqApiKeyField = new JTextField(20);
-        groqGbc.gridx = 1;
-        groqGbc.gridy = groqRow;
-        groqGbc.gridwidth = 2;
-        groqGbc.weightx = 1.0;
-        groqGbc.anchor = GridBagConstraints.WEST;
-        groqPanel.add(groqApiKeyField, groqGbc);
+        grokGbc2.gridx = 0;
+        grokGbc2.gridy = groqRow;
+        grokGbc2.gridwidth = 1;
+        grokGbc2.weightx = 0;
+        grokGbc2.anchor = GridBagConstraints.EAST;
+        grokPanel.add(new JLabel("Whisper API Key:"), grokGbc2);
+
+        // In this example, reuse grokPanelAPI if needed – here we simply show the groq input from API settings.
         groqRow++;
-        groqGbc.gridx = 0;
-        groqGbc.gridy = groqRow;
-        groqGbc.gridwidth = 1;
-        groqGbc.weightx = 0;
-        groqGbc.anchor = GridBagConstraints.EAST;
-        groqPanel.add(new JLabel("Model:"), groqGbc);
-        String[] groqModels = {"groq-model-1", "groq-model-2"}; // Dummy models
-        groqModelComboBox = new JComboBox<>(groqModels);
-        groqGbc.gridx = 1;
-        groqGbc.gridy = groqRow;
-        groqGbc.gridwidth = 2;
-        groqGbc.weightx = 1.0;
-        groqGbc.anchor = GridBagConstraints.WEST;
-        groqPanel.add(groqModelComboBox, groqGbc);
+        grokGbc2.gridx = 0;
+        grokGbc2.gridy = groqRow;
+        grokGbc2.gridwidth = 1;
+        grokGbc2.weightx = 0;
+        grokGbc2.anchor = GridBagConstraints.EAST;
+        grokPanel.add(new JLabel("Model:"), grokGbc2);
 
         // ----- Initialize OpenAI Panel -----
         openaiPanel = new JPanel(new GridBagLayout());
-        GridBagConstraints openaiGbc = new GridBagConstraints();
-        openaiGbc.insets = new Insets(5, 5, 5, 5);
-        openaiGbc.fill = GridBagConstraints.HORIZONTAL;
+        GridBagConstraints openaiGbc2 = new GridBagConstraints();
+        openaiGbc2.insets = new Insets(5, 5, 5, 5);
+        openaiGbc2.fill = GridBagConstraints.HORIZONTAL;
         int openaiRow = 0;
-        openaiGbc.gridx = 0;
-        openaiGbc.gridy = openaiRow;
-        openaiGbc.gridwidth = 1;
-        openaiGbc.weightx = 0;
-        openaiGbc.anchor = GridBagConstraints.EAST;
+        openaiGbc2.gridx = 0;
+        openaiGbc2.gridy = openaiRow;
+        openaiGbc2.gridwidth = 1;
+        openaiGbc2.weightx = 0;
+        openaiGbc2.anchor = GridBagConstraints.EAST;
         JLabel noSettingsLabel = new JLabel("No configuration required at this time :-)");
-        openaiPanel.add(noSettingsLabel, openaiGbc);
-
+        openaiPanel.add(noSettingsLabel, openaiGbc2);
         // ----- Initialize Open WebUI Panel -----
         openWebUIPanel = new JPanel(new GridBagLayout());
-        GridBagConstraints openWebUIGbc = new GridBagConstraints();
-        openWebUIGbc.insets = new Insets(5, 5, 5, 5);
-        openWebUIGbc.fill = GridBagConstraints.HORIZONTAL;
+        GridBagConstraints openWebUIGbc2 = new GridBagConstraints();
+        openWebUIGbc2.insets = new Insets(5, 5, 5, 5);
+        openWebUIGbc2.fill = GridBagConstraints.HORIZONTAL;
         int openWebUIGbcRow = 0;
-        openWebUIGbc.gridx = 0;
-        openWebUIGbc.gridy = openWebUIGbcRow;
-        openWebUIGbc.gridwidth = 1;
-        openWebUIGbc.weightx = 0;
-        openWebUIGbc.anchor = GridBagConstraints.EAST;
+        openWebUIGbc2.gridx = 0;
+        openWebUIGbc2.gridy = openWebUIGbcRow;
+        openWebUIGbc2.gridwidth = 1;
+        openWebUIGbc2.weightx = 0;
+        openWebUIGbc2.anchor = GridBagConstraints.EAST;
         JLabel openWebUInoSettingsLabel = new JLabel("No configuration required at this time :-)");
-        openWebUIPanel.add(openWebUInoSettingsLabel, openaiGbc);
-
+        openWebUIPanel.add(openWebUInoSettingsLabel, openWebUIGbc2);
+        // ----- Initialize LiteLLM Panel -----
+        liteLLMPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints liteLLMUIGbc = new GridBagConstraints();
+        liteLLMUIGbc.insets = new Insets(5, 5, 5, 5);
+        liteLLMUIGbc.fill = GridBagConstraints.HORIZONTAL;
+        int liteLLMUIGbcRow = 0;
+        liteLLMUIGbc.gridx = 0;
+        liteLLMUIGbc.gridy = liteLLMUIGbcRow;
+        liteLLMUIGbc.gridwidth = 1;
+        liteLLMUIGbc.weightx = 0;
+        liteLLMUIGbc.anchor = GridBagConstraints.EAST;
+        JLabel liteLLMPanelSettingsLabel = new JLabel("No configuration required at this time :-)");
+        liteLLMPanel.add(liteLLMPanelSettingsLabel, liteLLMUIGbc);
         // Add sub-panels to the card layout panel
         whisperSettingsPanel.add(openaiPanel, SERVER_OPENAI);
         whisperSettingsPanel.add(fasterWhispererPanel, SERVER_FASTER_WHISPER);
         whisperSettingsPanel.add(openWebUIPanel, OPEN_WEB_UI);
-        whisperSettingsPanel.add(groqPanel, SERVER_GROQ);
-
+        whisperSettingsPanel.add(liteLLMPanel, LITE_LLM);
+        //whisperSettingsPanel.add(groqPanel, SERVER_GROQ);
         gbc.gridx = 0;
         gbc.gridy = row;
         gbc.gridwidth = 4;
@@ -529,15 +572,14 @@ public class SettingsForm extends JPanel {
         CardLayout cl = (CardLayout) (whisperSettingsPanel.getLayout());
         cl.show(whisperSettingsPanel, (String) whisperServerComboBox.getSelectedItem());
 
-
-        // ===== New Section: Synthesizers Settings =====
+        // ===== Synthesizers Settings =====
         JPanel synthesizersPanel = new JPanel(new GridBagLayout());
         synthesizersPanel.setBorder(BorderFactory.createTitledBorder("Synthesizers Settings"));
         GridBagConstraints synthGbc = new GridBagConstraints();
         synthGbc.insets = new Insets(5, 5, 5, 5);
         synthGbc.fill = GridBagConstraints.HORIZONTAL;
         int synthRow = 0;
-// 11labs API Key field
+        // 11labs API Key field
         synthGbc.gridx = 0;
         synthGbc.gridy = synthRow;
         synthGbc.gridwidth = 1;
@@ -559,8 +601,6 @@ public class SettingsForm extends JPanel {
         gbc.weightx = 1.0;
         contentPanel.add(synthesizersPanel, gbc);
 
-
-
         // Row: Save Button
         row++;
         saveButton = new JButton("Save");
@@ -573,9 +613,7 @@ public class SettingsForm extends JPanel {
         gbc.weightx = 1.0;
         gbc.anchor = GridBagConstraints.EAST;
         contentPanel.add(buttonPanel, gbc);
-
         loadSettings();
-
         // Set the layout for the SettingsForm panel using GroupLayout
         GroupLayout layout = new GroupLayout(this);
         this.setLayout(layout);
@@ -792,15 +830,19 @@ public class SettingsForm extends JPanel {
                     .collect(Collectors.toList());
             keySequenceTextField.setKeysDisplayed(sequenceSet);
         }
-
-        String apiKey = configManager.getProperty("apiKey");
-        openaiApiKeyField.setText(apiKey != null ? apiKey : "");
-        String grokApiKey = configManager.getProperty("grokApiKey");
-        grokApiKeyField.setText(apiKey != null ? grokApiKey : "");
-        String openwebUIApiKey = configManager.getOpenWebUIApiKey();
-        openwebUIApiKeyField.setText(openwebUIApiKey != null ? openwebUIApiKey : "");
-        String openwebUIApiURL = configManager.getOpenWebUIServerUrl();
-        openwebUIApiURLField.setText(openwebUIApiURL != null ? openwebUIApiURL : "");
+        // Load API Settings using the new fields
+        String openaiKey = configManager.getProperty("apiKey");
+        openaiApiKeyFieldNew.setText(openaiKey != null ? openaiKey : "");
+        String grokKey = configManager.getProperty("grokApiKey");
+        grokApiKeyFieldNew.setText(grokKey != null ? grokKey : "");
+        String openwebUIKey = configManager.getOpenWebUIApiKey();
+        openwebUIApiKeyFieldNew.setText(openwebUIKey != null ? openwebUIKey : "");
+        String openwebUIUrl = configManager.getOpenWebUIServerUrl();
+        openwebUIApiURLFieldNew.setText(openwebUIUrl != null ? openwebUIUrl : "");
+        String liteLLMKey = configManager.getLiteLLMApiKey();
+        liteLLMApiKeyFieldNew.setText(liteLLMKey != null ? liteLLMKey : "");
+        String liteLLMUrl = configManager.getLiteLLMServerUrl();
+        liteLLMApiURLFieldNew.setText(liteLLMUrl != null ? liteLLMUrl : "");
 
         // Microphone and bitrate settings
         String selectedMicrophone = configManager.getProperty("selectedMicrophone");
@@ -831,13 +873,9 @@ public class SettingsForm extends JPanel {
         } else {
             fasterWhisperLanguageComboBox.setSelectedItem("");
         }
-        // Load Groq settings
-        String groqApiKey = configManager.getProperty("groqApiKey");
-        groqApiKeyField.setText(groqApiKey != null ? groqApiKey : "");
-        String groqModel = configManager.getProperty("groqModel");
-        if (groqModel != null) {
-            groqModelComboBox.setSelectedItem(groqModel);
-        }
+        // Load Grok settings
+        String grokApiKey = configManager.getProperty("grokApiKey");
+
 
         // Load ElevenLabs Synthesizer settings
         String elevenLabsApiKey = configManager.getProperty("elevenLabsApiKey");
@@ -854,18 +892,21 @@ public class SettingsForm extends JPanel {
                 .map(String::valueOf)
                 .collect(Collectors.joining(","));
         configManager.setProperty("keySequence", keySequenceString);
-        // Save OpenAI Whisper API Key
-        String openaiKey = openaiApiKeyField.getText();
+
+        // Save API Settings from the new API Settings panel
+        String openaiKey = openaiApiKeyFieldNew.getText();
         configManager.setProperty("apiKey", openaiKey);
+        String grokKey = grokApiKeyFieldNew.getText();
+        configManager.setProperty("grokApiKey", grokKey);
+        String openwebUIKey = openwebUIApiKeyFieldNew.getText();
+        configManager.setOpenWebUIApiKey(openwebUIKey);
+        String openwebUIUrl = openwebUIApiURLFieldNew.getText();
+        configManager.setOpenWebUIServerUrl(openwebUIUrl);
+        String liteLLMKey = liteLLMApiKeyFieldNew.getText();
+        configManager.setLiteLLMApiKey(liteLLMKey);
+        String liteLLMUrl = liteLLMApiURLFieldNew.getText();
+        configManager.setLiteLLMServerUrl(liteLLMUrl);
 
-        String grokApiKey = grokApiKeyField.getText();
-        configManager.setProperty("grokApiKey", grokApiKey);
-
-        String openwebUIApiKey = openwebUIApiKeyField.getText();
-        configManager.setOpenWebUIApiKey(openwebUIApiKey);
-
-        String openwebUIApiURL = openwebUIApiURLField.getText();
-        configManager.setOpenWebUIServerUrl(openwebUIApiURL);
         // Save microphone and bitrate settings
         configManager.setProperty("selectedMicrophone", (String) microphoneComboBox.getSelectedItem());
         int selectedBitrate = (Integer) bitrateComboBox.getSelectedItem();
@@ -881,16 +922,14 @@ public class SettingsForm extends JPanel {
         configManager.setProperty("fasterWhisperModel", fwModel);
         String selectedLanguage = (String) fasterWhisperLanguageComboBox.getSelectedItem();
         configManager.setProperty("fasterWhisperLanguage", selectedLanguage);
-        // Save Groq settings
-        String groqApiKey = groqApiKeyField.getText();
-        configManager.setProperty("groqApiKey", groqApiKey);
-        String groqModel = (String) groqModelComboBox.getSelectedItem();
-        configManager.setProperty("groqModel", groqModel);
+
+        // Save Grok settings
+        String grokApiKey = grokApiKeyFieldNew.getText();
+        configManager.setProperty("grokApiKey", grokApiKey);
 
         // Save ElevenLabs Synthesizer settings
         String elevenLabsApiKey = elevenLabsApiKeyField.getText();
         configManager.setProperty("elevenLabsApiKey", elevenLabsApiKey);
-
 
         configManager.saveConfig();
         Notificationmanager.getInstance().showNotification(ToastNotification.Type.SUCCESS,
