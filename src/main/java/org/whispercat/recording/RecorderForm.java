@@ -5,34 +5,42 @@ import com.formdev.flatlaf.util.UIScale;
 import org.whispercat.*;
 import org.whispercat.postprocessing.PostProcessingData;
 import org.whispercat.postprocessing.PostProcessingService;
-import org.whispercat.recording.clients.FasterWhisperTranscribeClient;
-import org.whispercat.recording.clients.LiteLLMRecordingClient;
-import org.whispercat.recording.clients.OpenAITranscribeClient;
-import org.whispercat.recording.clients.OpenWebUITranscribeClient;
+import org.whispercat.recording.clients.*;
 
-import javax.sound.sampled.*;
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
-import java.awt.AWTException;
 import java.awt.datatransfer.DataFlavor;
 import java.awt.datatransfer.StringSelection;
 import java.awt.event.ItemEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.File;
+import java.io.InputStream;
 import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.util.*;
 import java.util.List;
-import java.util.Optional;
 
 public class RecorderForm extends javax.swing.JPanel {
     private final JTextArea processedText = new JTextArea(3, 20);
+    // Added missing declaration of enablePostProcessingCheckBox.
     private final JCheckBox enablePostProcessingCheckBox = new JCheckBox("<html>Enable Post Processing&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</html>");
+
+    // Removed checkboxes recordAudioOutputCheckBox and doNotRecordMicrophoneCheckBox
+
+    // Added radio buttons for recording mode selection:
+    private JRadioButton recordMicOnlyRadioButton;
+    private JRadioButton recordMicAndAudioRadioButton;
+    private JRadioButton recordAudioOnlyRadioButton;
+
     private final JButton recordButton;
     private final int baseIconSize = 200;
-    private final OpenAITranscribeClient whisperClient;
+    private final OpenAITranscribeClient openAITranscribeClient;
     private final ConfigManager configManager;
     private final FasterWhisperTranscribeClient fasterWhisperTranscribeClient;
     private final OpenWebUITranscribeClient openWebUITranscribeClient;
@@ -45,24 +53,21 @@ public class RecorderForm extends javax.swing.JPanel {
     private static final org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(RecorderForm.class);
     private JComboBox<PostProcessingItem> postProcessingSelectComboBox;
     private List<PostProcessingData> postProcessingJSONList;
-
     private SwingWorker<File, Void> speakerWorker;
-
-
-    // New fields for speaker output and microphone control added in Advanced Settings.
-    private JCheckBox recordAudioOutputCheckBox;
-    private JComboBox<String> outputDeviceComboBox;
-    private JButton testOutputButton;
-    private JProgressBar outputProgressBar;
-    private JCheckBox doNotRecordMicrophoneCheckBox;
+    // Instance variable for speaker recorder remains unchanged.
     private SpeakerRecorder speakerRecorder;
     // Instance variables for storing recorded files:
     private File lastRecordedMicFile;
     private File lastRecordedSpeakerFile;
 
+    // Advanced settings output device components remain unchanged.
+    private JComboBox<String> outputDeviceComboBox;
+    private JButton testOutputButton;
+    private JProgressBar outputProgressBar;
+
     public RecorderForm(ConfigManager configManager) {
         this.configManager = configManager;
-        this.whisperClient = new OpenAITranscribeClient(configManager);
+        this.openAITranscribeClient = new OpenAITranscribeClient(configManager);
         this.fasterWhisperTranscribeClient = new FasterWhisperTranscribeClient(configManager);
         this.openWebUITranscribeClient = new OpenWebUITranscribeClient(configManager);
         this.liteLLMRecordingClient = new LiteLLMRecordingClient(configManager);
@@ -122,9 +127,10 @@ public class RecorderForm extends javax.swing.JPanel {
         centerPanel.setTransferHandler(new TransferHandler() {
             @Override
             public boolean canImport(TransferSupport support) {
-                // Accept file list flavor
+                // Allow file list import
                 return support.isDataFlavorSupported(DataFlavor.javaFileListFlavor);
             }
+
             @Override
             public boolean importData(TransferSupport support) {
                 try {
@@ -148,11 +154,11 @@ public class RecorderForm extends javax.swing.JPanel {
                 return false;
             }
         });
-
         // ===== Begin Advanced Settings Panel =====
         JPanel advancedSettingsContainerPanel = new JPanel();
         advancedSettingsContainerPanel.setLayout(new BoxLayout(advancedSettingsContainerPanel, BoxLayout.Y_AXIS));
-        advancedSettingsContainerPanel.setBorder(new EmptyBorder(10, 50, 0, 50));
+        // CHANGED: Removed top inset (changed from 10 to 0) to adjust spacing between Post Processing and Advanced Settings panels.
+        advancedSettingsContainerPanel.setBorder(new EmptyBorder(0, 50, 0, 50));
         advancedSettingsContainerPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         // New checkbox to enable advanced recording settings
         JCheckBox enableAdvancedSettingsCheckBox = new JCheckBox("Show Advanced Settings");
@@ -164,8 +170,7 @@ public class RecorderForm extends javax.swing.JPanel {
         JPanel advancedSettingsPanel = new JPanel();
         advancedSettingsPanel.setLayout(new BoxLayout(advancedSettingsPanel, BoxLayout.Y_AXIS));
         advancedSettingsPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-        JCheckBox autoPasteCheckBox = new JCheckBox("Paste from clipboard (Ctrl+V)");
+        JCheckBox autoPasteCheckBox = new JCheckBox("Paste Transcription from clipboard (like Ctrl+V)");
         autoPasteCheckBox.setHorizontalTextPosition(SwingConstants.LEFT);
         autoPasteCheckBox.setAlignmentX(Component.LEFT_ALIGNMENT);
         autoPasteCheckBox.setSelected(configManager.isAutoPasteEnabled());
@@ -173,43 +178,60 @@ public class RecorderForm extends javax.swing.JPanel {
             configManager.setAutoPasteEnabled(autoPasteCheckBox.isSelected());
         });
         advancedSettingsPanel.add(autoPasteCheckBox);
-
-        // ===== New Advanced-Settings for Audio Output Recording =====
+        // ===== New Advanced-Settings for Recording Mode via Radio Buttons =====
         JPanel speakerRecordingPanel = new JPanel();
         speakerRecordingPanel.setLayout(new BoxLayout(speakerRecordingPanel, BoxLayout.Y_AXIS));
         speakerRecordingPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
-        speakerRecordingPanel.setBorder(BorderFactory.createTitledBorder("Audio Output Recording Settings"));
+        // CHANGED: Remove old checkboxes and add radio buttons for selecting the recording mode.
+        // The three options are: "Record only Microphone (Default)", "Record Microphone and Audio", and "Record only Audio"
+        speakerRecordingPanel.setBorder(BorderFactory.createTitledBorder("Recording Mode"));
+        recordMicOnlyRadioButton = new JRadioButton("Record only Microphone (Default)");
+        recordMicAndAudioRadioButton = new JRadioButton("Record Microphone and Audio");
+        JLabel infoLabel = new JLabel("Info: additional details here");
 
-        speakerRecordingPanel.add(Box.createVerticalStrut(5));
-        recordAudioOutputCheckBox = new JCheckBox("Record Audio Output");
-        recordAudioOutputCheckBox.setHorizontalTextPosition(SwingConstants.LEFT);
-        recordAudioOutputCheckBox.setAlignmentX(Component.LEFT_ALIGNMENT);
-        speakerRecordingPanel.add(recordAudioOutputCheckBox);
+        recordAudioOnlyRadioButton = new JRadioButton("Record only Audio");
+
+        // Set default selection
+        recordMicOnlyRadioButton.setSelected(true);
+
+        ButtonGroup recordingModeGroup = new ButtonGroup();
+        recordingModeGroup.add(recordMicOnlyRadioButton);
+        recordingModeGroup.add(recordMicAndAudioRadioButton);
+        recordMicAndAudioRadioButton.setToolTipText("Currently recording both works only with OpenAI API directly and FasterWhisper API. OpenWebUI and LiteLLM do not support this word segmentation.");
+        if (configManager.getWhisperServer().equals("Open WebUI") || configManager.getWhisperServer().equals("LiteLLM")) {
+            recordMicAndAudioRadioButton.setEnabled(false);
+        }
+
+        recordingModeGroup.add(recordAudioOnlyRadioButton);
+
+        speakerRecordingPanel.add(recordMicOnlyRadioButton);
+        speakerRecordingPanel.add(recordMicAndAudioRadioButton);
+        speakerRecordingPanel.add(recordAudioOnlyRadioButton);
         speakerRecordingPanel.add(Box.createVerticalStrut(5));
 
-        doNotRecordMicrophoneCheckBox = new JCheckBox("Do Not Record Microphone");
-        doNotRecordMicrophoneCheckBox.setHorizontalTextPosition(SwingConstants.LEFT);
-        doNotRecordMicrophoneCheckBox.setAlignmentX(Component.LEFT_ALIGNMENT);
-        speakerRecordingPanel.add(doNotRecordMicrophoneCheckBox);
-        speakerRecordingPanel.add(Box.createVerticalStrut(5));
-
+        // Panel for output device controls remains unchanged
         JPanel outputDevicePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
         outputDevicePanel.setAlignmentX(Component.LEFT_ALIGNMENT);
         JLabel outputDeviceLabel = new JLabel("Select Monitor Device:");
         outputDevicePanel.add(outputDeviceLabel);
-
         outputDeviceComboBox = new JComboBox<>();
         String[] monitorDevices = SpeakerRecorder.getMonitorDevices();
         if (monitorDevices.length == 0) {
             outputDeviceComboBox.addItem("No monitor devices found");
         } else {
-            for (String device : monitorDevices) {
+            String lastUsedOutputDevice = configManager.getLastUsedOutputDevice();
+            int selectedIndex = 0;
+            for (int i = 0; i < monitorDevices.length; i++) {
+                String device = monitorDevices[i];
+                if (device.equals(lastUsedOutputDevice)) {
+                    selectedIndex = i;
+                }
                 outputDeviceComboBox.addItem(device);
             }
+            outputDeviceComboBox.setSelectedIndex(selectedIndex);
         }
         outputDevicePanel.add(outputDeviceComboBox);
-
-        testOutputButton = new JButton("Test Monitor");
+        testOutputButton = new JButton("Test Audio");
         outputDevicePanel.add(testOutputButton);
         outputProgressBar = new JProgressBar();
         outputProgressBar.setPreferredSize(new Dimension(100, 20));
@@ -218,7 +240,6 @@ public class RecorderForm extends javax.swing.JPanel {
         outputProgressBar.setString("Idle");
         outputDevicePanel.add(outputProgressBar);
         speakerRecordingPanel.add(outputDevicePanel);
-
         testOutputButton.addActionListener(e -> {
             String selectedDevice = (String) outputDeviceComboBox.getSelectedItem();
             if (selectedDevice == null || selectedDevice.equals("No monitor devices found")) {
@@ -228,8 +249,6 @@ public class RecorderForm extends javax.swing.JPanel {
             }
             speakerRecorder.testAudioOutput(selectedDevice, outputProgressBar);
         });
-
-
         advancedSettingsPanel.setVisible(false);
         enableAdvancedSettingsCheckBox.addActionListener(e -> {
             boolean selected = enableAdvancedSettingsCheckBox.isSelected();
@@ -242,7 +261,6 @@ public class RecorderForm extends javax.swing.JPanel {
         advancedSettingsPanel.add(speakerRecordingPanel);
         advancedSettingsContainerPanel.add(advancedSettingsPanel);
         // ===== End Advanced Settings Panel =====
-
         JPanel postProcessingContainerPanel = new JPanel();
         postProcessingContainerPanel.setLayout(new BoxLayout(postProcessingContainerPanel, BoxLayout.Y_AXIS));
         postProcessingContainerPanel.setBorder(new EmptyBorder(0, 50, 0, 50));
@@ -332,10 +350,9 @@ public class RecorderForm extends javax.swing.JPanel {
         });
         if (configManager.isPostProcessingOnStartup()) {
             loadOnStartupCheckBox.setSelected(true);
-            enableAdvancedSettingsCheckBox.doClick();
+            enablePostProcessingCheckBox.doClick();
         }
         checkSettings();
-
         // ===== Add panels to main layout in proper order =====
         javax.swing.GroupLayout layout = new javax.swing.GroupLayout(this);
         this.setLayout(layout);
@@ -347,21 +364,28 @@ public class RecorderForm extends javax.swing.JPanel {
         );
         layout.setVerticalGroup(
                 layout.createSequentialGroup()
-                        .addContainerGap()
-                        .addComponent(centerPanel)
-                        .addComponent(postProcessingContainerPanel)
-                        .addComponent(advancedSettingsContainerPanel)
-                        .addContainerGap()
+                        .addContainerGap() // Top container gap
+                        .addComponent(centerPanel, javax.swing.GroupLayout.PREFERRED_SIZE,
+                                javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addPreferredGap(javax.swing.LayoutStyle.ComponentPlacement.RELATED) // minimal gap between center and post processing
+                        .addComponent(postProcessingContainerPanel, javax.swing.GroupLayout.PREFERRED_SIZE,
+                                javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addGap(0, 0, 0) // no gap between post processing and advanced settings
+                        .addComponent(advancedSettingsContainerPanel, javax.swing.GroupLayout.PREFERRED_SIZE,
+                                javax.swing.GroupLayout.DEFAULT_SIZE, javax.swing.GroupLayout.PREFERRED_SIZE)
+                        .addContainerGap() // Bottom container gap
         );
     }
 
     private static class PostProcessingItem {
         private final String title;
         private final String uuid;
+
         public PostProcessingItem(String title, String uuid) {
             this.title = title;
             this.uuid = uuid;
         }
+
         @Override
         public String toString() {
             return title;
@@ -396,15 +420,29 @@ public class RecorderForm extends javax.swing.JPanel {
         if (!isRecording) {
             if (!checkSettings()) return;
 
-            // Start microphone recording if not disabled
-            if (!doNotRecordMicrophoneCheckBox.isSelected()) {
+            // Determine selected recording mode via radio buttons.
+            boolean recordMic = false;
+            boolean recordSpeaker = false;
+            if (recordMicOnlyRadioButton.isSelected()) {
+                recordMic = true;
+                recordSpeaker = false;
+            } else if (recordMicAndAudioRadioButton.isSelected()) {
+                recordMic = true;
+                recordSpeaker = true;
+            } else if (recordAudioOnlyRadioButton.isSelected()) {
+                recordMic = false;
+                recordSpeaker = true;
+            }
+
+            // Start microphone recording if selected
+            if (recordMic) {
                 startRecording();
             } else {
                 lastRecordedMicFile = null;
                 logger.info("Microphone recording disabled.");
             }
-            // Start speaker recording if enabled
-            if (recordAudioOutputCheckBox.isSelected()) {
+            // Start speaker recording if selected
+            if (recordSpeaker) {
                 String selectedDevice = (String) outputDeviceComboBox.getSelectedItem();
                 if (selectedDevice != null && !selectedDevice.equals("No monitor devices found")) {
                     speakerWorker = speakerRecorder.toggleRecordButton(selectedDevice, outputProgressBar);
@@ -431,10 +469,11 @@ public class RecorderForm extends javax.swing.JPanel {
             updateTrayMenu();
             isRecording = true;
         } else {
-            if (recordAudioOutputCheckBox.isSelected()) {
+            // When toggling off, stop speaker recording if applicable.
+            if (recordMicAndAudioRadioButton.isSelected() || recordAudioOnlyRadioButton.isSelected()) {
                 speakerRecorder.stopRecordingOutput();
             }
-            customUpload(false);
+            stopRecording(false);
         }
     }
 
@@ -457,7 +496,7 @@ public class RecorderForm extends javax.swing.JPanel {
 
     private boolean isStoppingInProgress = false;
 
-    public void customUpload(boolean cancelledRecording) {
+    public void stopRecording(boolean cancelledRecording) {
         updateUIForRecordingStop();
         isStoppingInProgress = true;
         recordButton.setText("Converting. Please wait...");
@@ -466,13 +505,13 @@ public class RecorderForm extends javax.swing.JPanel {
         }
         logger.info("Recording stopped");
         if (!cancelledRecording) {
-            if (recordAudioOutputCheckBox.isSelected()) {
-                // Wenn speakerWorker null ist, wurde entweder keine Speaker-Aufnahme gestartet oder er ist bereits fertig.
+            // If speaker recording was in use, ensure it has finished.
+            if ((recordMicAndAudioRadioButton.isSelected() || recordAudioOnlyRadioButton.isSelected())) {
                 if (speakerWorker == null) {
-                    // Direkt zum Mischen übergehen.
+                    // Proceed directly to transcription.
                     transcribe();
                 } else if (speakerWorker.getState() != SwingWorker.StateValue.DONE) {
-                    // Füge einen Listener hinzu, der nach Abschluss des speakerWorker den Mix-Vorgang ausführt.
+                    // Add a listener to run the mixing process after speakerWorker completes.
                     speakerWorker.addPropertyChangeListener(evt -> {
                         if ("state".equals(evt.getPropertyName()) &&
                                 evt.getNewValue() == SwingWorker.StateValue.DONE) {
@@ -514,6 +553,7 @@ public class RecorderForm extends javax.swing.JPanel {
         lastRecordedSpeakerFile = audioFile;
         transcribe();
     }
+
     public void playClickSound() {
         if (configManager.isStopSoundEnabled()) {
             new Thread(() -> {
@@ -530,10 +570,12 @@ public class RecorderForm extends javax.swing.JPanel {
             }).start();
         }
     }
+
     private void copyTranscriptionToClipboard(String text) {
         StringSelection stringSelection = new StringSelection(text);
         Toolkit.getDefaultToolkit().getSystemClipboard().setContents(stringSelection, null);
     }
+
     private void pasteFromClipboard() {
         if (!configManager.isAutoPasteEnabled()) {
             return;
@@ -549,6 +591,7 @@ public class RecorderForm extends javax.swing.JPanel {
             logger.error("An error occurred while pasting from clipboard", e);
         }
     }
+
     private void updateUIForRecordingStart() {
         processedText.setFocusable(false);
         processedText.setFocusable(true);
@@ -565,6 +608,7 @@ public class RecorderForm extends javax.swing.JPanel {
                 Thread.sleep(1000);
                 return null;
             }
+
             @Override
             protected void done() {
                 isToggleInProgress = false;
@@ -574,11 +618,12 @@ public class RecorderForm extends javax.swing.JPanel {
             }
         };
         worker.execute();
-        if (recordAudioOutputCheckBox.isSelected()) {
+        if ((recordMicAndAudioRadioButton.isSelected() || recordAudioOnlyRadioButton.isSelected())) {
             outputProgressBar.setIndeterminate(true);
             outputProgressBar.setString("Recording...");
         }
     }
+
     private void updateUIForRecordingStop() {
         int iconSize = UIScale.scale(baseIconSize);
         FlatSVGIcon svgIcon = new FlatSVGIcon("hourglas.svg", iconSize, iconSize);
@@ -586,11 +631,12 @@ public class RecorderForm extends javax.swing.JPanel {
         recordingLabel.setEnabled(false);
         recordButton.setText("Converting. Please wait...");
         recordButton.setEnabled(false);
-        if (recordAudioOutputCheckBox.isSelected()) {
+        if ((recordMicAndAudioRadioButton.isSelected() || recordAudioOnlyRadioButton.isSelected())) {
             outputProgressBar.setIndeterminate(false);
             outputProgressBar.setString("Idle");
         }
     }
+
     private void resetUIAfterTranscription() {
         isStoppingInProgress = false;
         int iconSize = UIScale.scale(baseIconSize);
@@ -600,9 +646,10 @@ public class RecorderForm extends javax.swing.JPanel {
         recordButton.setText("Start Recording");
         recordButton.setEnabled(true);
     }
+
     private boolean checkSettings() {
         boolean settingsSet = true;
-        if (configManager.getApiKey() == null || configManager.getApiKey().length() == 0) {
+        if ((configManager.getWhisperServer().equals("OpenAI") || configManager.getWhisperServer().isEmpty()) && (configManager.getApiKey() == null || configManager.getApiKey().length() == 0)) {
             Notificationmanager.getInstance().showNotification(ToastNotification.Type.WARNING,
                     "API Key must be set in options.");
             settingsSet = false;
@@ -614,41 +661,113 @@ public class RecorderForm extends javax.swing.JPanel {
         }
         return settingsSet;
     }
+
     private void updateTrayMenu() {
         TrayIconManager manager = AudioRecorderUI.getTrayIconManager();
         if (manager != null) {
             manager.updateTrayMenu(isRecording);
         }
     }
+
     private class AudioTranscriptionWorker extends SwingWorker<String, Void> {
         private final File micFile;
         private final File speakerFile;
+
         public AudioTranscriptionWorker(File micFile, File speakerFile) {
             this.micFile = micFile;
             this.speakerFile = speakerFile;
         }
+
+        /**
+         * Processes an audio file by splitting it, transcribing each part using the provided whisperClient,
+         * and merging the transcript words (with appropriate cumulative offsets) into one list.
+         *
+         * @param audioFile      The audio File to process.
+         * @param maxSizeBytes   The maximum file size (in bytes) allowed for each split part.
+         * @param whisperClient  The instance of WhisperClient used for transcription.
+         * @return A merged list of WordTimestampMerger.Word with adjusted timestamps.
+         * @throws Exception if processing or transcription fails.
+         */
+        public List<WordTimestampMerger.Word> processAudioFile(File audioFile, long maxSizeBytes, WhisperClient whisperClient) throws Exception {
+            if(audioFile == null) {
+                return Collections.emptyList();
+            }
+            // Create output directory in temp with a unique timestamp based on the file name
+            File outputDir = new File(System.getProperty("java.io.tmpdir"), audioFile.getName() + "_" + System.currentTimeMillis());
+
+            // Split the audio file into parts along with cumulative offsets.
+            AudioMixer.SplitResult splitResult = AudioMixer.splitFileWithOffsets(audioFile, maxSizeBytes, outputDir);
+            List<WordTimestampMerger.Word> mergedWords = new ArrayList<>();
+
+            if(splitResult == null) {
+                return Collections.emptyList();
+            }
+            // Process each split part.
+            for (int i = 0; i < splitResult.parts.size(); i++) {
+                File partFile = splitResult.parts.get(i);
+                long offset = splitResult.offsets.get(i);
+
+                // Transcribe the current part using the whisper client.
+                String transcriptText = whisperClient.transcribe(partFile);
+
+                // Parse the transcript JSON with punctuation and case preserved.
+                List<WordTimestampMerger.Word> words = WordTimestampMerger.parseJsonPreserve(transcriptText);
+
+                // If not the first part, adjust word timestamps by adding the cumulative offset.
+                if (offset != 0) {
+                    words = WordTimestampMerger.addOffsetToWords(words, offset);
+                }
+
+                // Add the words from the current part into the merged list.
+                mergedWords.addAll(words);
+            }
+
+            return mergedWords;
+        }
+
         @Override
         protected String doInBackground() {
             try {
-                if (configManager.getWhisperServer().equals("OpenAI")) {
-                    logger.info("Transcribing audio using OpenAI");
-                    String micText = whisperClient.transcribe(micFile);
-                    String speakerText = whisperClient.transcribe(speakerFile);
+                if (configManager.getWhisperServer().equals("OpenAI") ||
+                        configManager.getWhisperServer().equals("Faster-Whisper") ||
+                        configManager.getWhisperServer().equals("Open WebUI") ||
+                        configManager.getWhisperServer().equals("LiteLLM")) {
+                    logger.info("Transcribing audio using " + configManager.getWhisperServer());
+                    String micText = "";
+                    String speakerText = "";
+                    if (configManager.getWhisperServer().equals("OpenAI")) {
+                        // File file = new File(System.getProperty("java.io.tmpdir"), "merged.wav");
+                        //AudioMixer.mergeAudioFiles(micFile, speakerFile, file);
+//                        micText = whisperClient.transcribe(file);
+//                        return micText;
+                        long maxSizeBytes = 24 * 1024 * 1024;
+                        List<WordTimestampMerger.Word> mergedMicWords = processAudioFile(micFile, maxSizeBytes, openAITranscribeClient);
+                        List<WordTimestampMerger.Word> mergedAudioWords = processAudioFile(speakerFile, maxSizeBytes, openAITranscribeClient);
 
-                    List<SrtMerger.SubtitleBlock> micSubTitleBlocks = SrtMerger.parseSrt(micText);
-                    List<SrtMerger.SubtitleBlock> speakerSubTitleBlocks = SrtMerger.parseSrt(speakerText);
-                    List<SrtMerger.SubtitleBlock> subtitleBlocks = SrtMerger.mergeSrtBlocks(micSubTitleBlocks, speakerSubTitleBlocks, 0l);
-                    return subtitleBlocks.stream().map(subtitleBlock -> subtitleBlock.text).reduce("", (a, b) -> a + b);
+                        List<WordTimestampMerger.Word> mergedWords = WordTimestampMerger.mergeWords(mergedMicWords, mergedAudioWords);
+                        return mergedWords.stream().map(subtitleBlock -> subtitleBlock.word).reduce("", (a, b) -> a + " " + b);
 
-                } else if (configManager.getWhisperServer().equals("Faster-Whisper")) {
-                    logger.info("Transcribing audio using Faster-Whisper");
-                    return fasterWhisperTranscribeClient.transcribe(micFile);
-                } else if (configManager.getWhisperServer().equals("Open WebUI")) {
-                    logger.info("Transcribing audio using Open WebUI");
-                    return openWebUITranscribeClient.transcribeAudio(micFile);
-                } else if (configManager.getWhisperServer().equals("LiteLLM")) {
-                    logger.info("Transcribing audio using LiteLLM");
-                    return liteLLMRecordingClient.transcribeAudio(micFile);
+                    } else if (configManager.getWhisperServer().equals("Faster-Whisper")) {
+                        long maxSizeBytes = 24 * 1024 * 1024;
+                        List<WordTimestampMerger.Word> mergedMicWords = processAudioFile(micFile, maxSizeBytes, fasterWhisperTranscribeClient);
+                        List<WordTimestampMerger.Word> mergedAudioWords = processAudioFile(speakerFile, maxSizeBytes, fasterWhisperTranscribeClient);
+
+                        List<WordTimestampMerger.Word> mergedWords = WordTimestampMerger.mergeWords(mergedMicWords, mergedAudioWords);
+                        return mergedWords.stream().map(subtitleBlock -> subtitleBlock.word).reduce("", (a, b) -> a + " " + b);
+                    } else if (configManager.getWhisperServer().equals("Open WebUI")) {
+                        micText = openWebUITranscribeClient.transcribeAudio(micFile);
+                        speakerText = openWebUITranscribeClient.transcribeAudio(speakerFile); //not supported due to missing word timestamps
+
+                        return micText;
+                    } else {
+                        micText = liteLLMRecordingClient.transcribeAudio(micFile);
+                        speakerText = liteLLMRecordingClient.transcribeAudio(speakerFile); // not supported due to missing word timestamps
+                        return micText;
+                    }
+//                    List<SrtMerger.SubtitleBlock> micSubTitleBlocks = SrtMerger.parseSrt(micText);
+//                    List<SrtMerger.SubtitleBlock> speakerSubTitleBlocks = SrtMerger.parseSrt(speakerText);
+//                    List<SrtMerger.SubtitleBlock> subtitleBlocks = SrtMerger.mergeSrtBlocks(micSubTitleBlocks, speakerSubTitleBlocks, 0l);
+//                    return subtitleBlocks.stream().map(subtitleBlock -> subtitleBlock.text).reduce("", (a, b) -> a + b);
                 } else {
                     logger.error("Unknown Whisper server: " + configManager.getWhisperServer());
                     Notificationmanager.getInstance().showNotification(ToastNotification.Type.ERROR,
@@ -661,7 +780,10 @@ public class RecorderForm extends javax.swing.JPanel {
                         "Error during transcription. See logs.");
                 return null;
             }
+
         }
+
+
         @Override
         protected void done() {
             String transcript = null;
@@ -716,5 +838,4 @@ public class RecorderForm extends javax.swing.JPanel {
             }
         }
     }
-
 }

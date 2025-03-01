@@ -67,7 +67,7 @@ public class SpeakerRecorder {
     public void testAudioOutput(String outputDevice, JProgressBar progressBar) {
         logger.info("Testing audio output on device: " + outputDevice);
         SwingUtilities.invokeLater(() -> {
-            progressBar.setIndeterminate(true);
+            //progressBar.setIndeterminate(true);
             progressBar.setString("Playing...");
         });
 
@@ -125,8 +125,11 @@ public class SpeakerRecorder {
 
             @Override
             protected File doInBackground() throws Exception {
-                String pipelineDescription = "pulsesrc device=\"" + outputDevice + "\" ! " +
-                        "audioconvert ! audioresample ! wavenc ! filesink location=" + recordingFile.getAbsolutePath();
+                String pipelineDescription = "pulsesrc device=\"" + outputDevice + "\" ! "
+                        + "audioconvert ! audioresample ! audio/x-raw,channels=1 ! wavenc ! filesink location="
+                        + recordingFile.getAbsolutePath();
+//                String pipelineDescription = "pulsesrc device=\"" + outputDevice + "\" ! " +
+//                        "audioconvert ! audioresample ! wavenc ! filesink location=" + recordingFile.getAbsolutePath();
                 pipeline = (Pipeline) Gst.parseLaunch(pipelineDescription);
                 // Optional: Falls der Ausgangstext oder Level-Meldungen über den Bus eingefangen werden sollen,
                 // kann hier der Bus verbunden werden, um die progressBar zu aktualisieren.

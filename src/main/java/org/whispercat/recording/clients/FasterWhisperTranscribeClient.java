@@ -21,7 +21,7 @@ import java.nio.charset.StandardCharsets;
  * FasterWhisperClient communicates with the Faster-Whisper transcription API endpoint.
  * It sends all Faster-Whisper parameters along with the audio file.
  */
-public class FasterWhisperTranscribeClient {
+public class FasterWhisperTranscribeClient implements WhisperClient {
     private static final Logger logger = LogManager.getLogger(FasterWhisperTranscribeClient.class);
     private final ConfigManager configManager;
 
@@ -37,6 +37,10 @@ public class FasterWhisperTranscribeClient {
      * @throws IOException if an error occurs during the API request.
      */
     public String transcribe(File audioFile) throws IOException {
+        if(audioFile == null) {
+            logger.info("Audio file is null");
+            return null;
+        }
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             // Build URL from ConfigManager
             String baseUrl = configManager.getFasterWhisperServerUrl().trim();
@@ -57,6 +61,12 @@ public class FasterWhisperTranscribeClient {
             MultipartEntityBuilder builder = MultipartEntityBuilder.create();
             builder.addBinaryBody("file", audioFile, ContentType.create("audio/wav"), audioFile.getName());
             builder.addTextBody("model", configManager.getFasterWhisperModel());
+
+            builder.addTextBody("timestamp_granularities[]", "word", ContentType.TEXT_PLAIN);
+            builder.addTextBody("timestamp_granularities[]", "segment", ContentType.TEXT_PLAIN);
+            builder.addTextBody("response_format", "verbose_json");
+            //            builder.addTextBody("response_format", "srt");
+
             if (!configManager.getFasterWhisperLanguage().isEmpty()) {
                 builder.addTextBody("language", configManager.getFasterWhisperLanguage());
             }
@@ -71,14 +81,15 @@ public class FasterWhisperTranscribeClient {
                     logger.error("Error from transcription API. Status: {} Response: {}", statusCode, responseString);
                     throw new IOException("Error from transcription API: " + responseString);
                 }
-                ObjectMapper objectMapper = new ObjectMapper();
-                JsonNode jsonNode = objectMapper.readTree(responseString);
-                // The API may return a plain string or an object with a "text" field.
-                if (jsonNode.isTextual()) {
-                    return jsonNode.asText();
-                } else {
-                    return jsonNode.path("text").asText();
-                }
+//                ObjectMapper objectMapper = new ObjectMapper();
+//                JsonNode jsonNode = objectMapper.readTree(responseString);
+//                // The API may return a plain string or an object with a "text" field.
+//                if (jsonNode.isTextual()) {
+//                    return jsonNode.asText();
+//                } else {
+//                    return jsonNode.path("text").asText();
+//                }
+                return responseString;
             }
         }
     }

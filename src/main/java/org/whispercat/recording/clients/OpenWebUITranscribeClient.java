@@ -17,6 +17,8 @@ import org.apache.http.entity.mime.HttpMultipartMode;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
 import org.apache.http.conn.ssl.SSLConnectionSocketFactory;
 import org.apache.http.ssl.SSLContextBuilder;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.whispercat.ConfigManager;
 
 import java.io.File;
@@ -33,6 +35,7 @@ import javax.net.ssl.SSLContext;
 public class OpenWebUITranscribeClient {
 
     private final ConfigManager configManager;
+    private static final Logger logger = LogManager.getLogger(LiteLLMRecordingClient.class);
 
     public OpenWebUITranscribeClient(ConfigManager configManager) {
         this.configManager = configManager;
@@ -68,6 +71,10 @@ public class OpenWebUITranscribeClient {
      * @throws IOException if an error occurs during the API call.
      */
     public String transcribeAudio(File audioFile) throws IOException {
+        if(audioFile == null) {
+            logger.info("Audio file is null");
+            return null;
+        }
         try (CloseableHttpClient httpClient = createHttpClient()) {
             // Build URL from ConfigManager.
             String baseUrl = configManager.getOpenWebUIServerUrl().trim();
@@ -85,6 +92,13 @@ public class OpenWebUITranscribeClient {
 
             MultipartEntityBuilder builder = MultipartEntityBuilder.create();
             builder.setMode(HttpMultipartMode.BROWSER_COMPATIBLE);
+
+            // currently not supported
+//            builder.addTextBody("timestamp_granularities[]", "word", ContentType.TEXT_PLAIN);
+//            builder.addTextBody("timestamp_granularities[]", "segment", ContentType.TEXT_PLAIN);
+//            builder.addTextBody("response_format", "verbose_json");
+            //builder.addTextBody("response_format", "srt");
+
             builder.addBinaryBody("file", audioFile, ContentType.create("audio/wav"), audioFile.getName());
             HttpEntity multipart = builder.build();
             httpPost.setEntity(multipart);

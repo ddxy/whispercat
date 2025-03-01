@@ -17,7 +17,7 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-public class OpenAITranscribeClient {
+public class OpenAITranscribeClient implements WhisperClient{
     private static final Logger logger = LogManager.getLogger(OpenAITranscribeClient.class);
     private static final String API_URL = "https://api.openai.com/v1/audio/transcriptions";
     private final ConfigManager configManager;
@@ -31,6 +31,8 @@ public class OpenAITranscribeClient {
             logger.info("Audio file is null");
             return null;
         }
+        logger.info("Transcribing audio file: {}", audioFile.getName());
+
         try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
             HttpPost httpPost = new HttpPost(API_URL);
             httpPost.setHeader("Authorization", "Bearer " + configManager.getApiKey());
@@ -39,8 +41,14 @@ public class OpenAITranscribeClient {
             builder.addBinaryBody("file", audioFile, ContentType.create("audio/wav"), audioFile.getName());
             // Set the model parameter
             builder.addTextBody("model", "whisper-1");
-            // Added new feature: Set the response format to SRT to obtain subtitle formatting
-            builder.addTextBody("response_format", "srt");
+
+//            builder.addTextBody("response_format", "srt");
+
+            // see https://community.openai.com/t/word-level-timestamps-and-sentence-timestamps-together/666462/5
+            // use word segments rather than srt to get better results
+            builder.addTextBody("timestamp_granularities[]", "word", ContentType.TEXT_PLAIN);
+            builder.addTextBody("timestamp_granularities[]", "segment", ContentType.TEXT_PLAIN);
+            builder.addTextBody("response_format", "verbose_json");
             HttpEntity multipart = builder.build();
             httpPost.setEntity(multipart);
             try (CloseableHttpResponse response = httpClient.execute(httpPost)) {
@@ -57,7 +65,7 @@ public class OpenAITranscribeClient {
                 ObjectMapper objectMapper = new ObjectMapper();
                 JsonNode jsonNode = objectMapper.readTree(responseString);
                 // Return the transcription text in SRT format
-                // return jsonNode.path("text").asText();
+//                 return jsonNode.path("text").asText();
                 return responseString;
             }
         }

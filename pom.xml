@@ -60,6 +60,49 @@
             <version>1.4.0</version>
         </dependency>
 
+        <dependency>
+            <groupId>com.googlecode.soundlibs</groupId>
+            <artifactId>tritonus-share</artifactId>
+            <version>0.3.7.4</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.googlecode.soundlibs</groupId>
+            <artifactId>tritonus-all</artifactId>
+            <version>0.3.7.2</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.googlecode.soundlibs</groupId>
+            <artifactId>jlayer</artifactId>
+            <version>1.0.1.4</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.googlecode.soundlibs</groupId>
+            <artifactId>mp3spi</artifactId>
+            <version>1.9.5.4</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.googlecode.soundlibs</groupId>
+            <artifactId>jorbis</artifactId>
+            <version>0.0.17.4</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.googlecode.soundlibs</groupId>
+            <artifactId>vorbisspi</artifactId>
+            <version>1.0.3.3</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.googlecode.soundlibs</groupId>
+            <artifactId>basicplayer</artifactId>
+            <version>3.0.0.0</version>
+        </dependency>
+
+
 
 
 
@@ -121,12 +164,6 @@
             <version>4.5.13</version>
         </dependency>
 
-        <!-- https://mvnrepository.com/artifact/javazoom/jlayer -->
-        <dependency>
-            <groupId>javazoom</groupId>
-            <artifactId>jlayer</artifactId>
-            <version>1.0.1</version>
-        </dependency>
 
 
         <!-- Apache HttpMime for MultipartEntityBuilder -->

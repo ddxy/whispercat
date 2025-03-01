@@ -272,6 +272,16 @@ public class ConfigManager {
         saveConfig();
     }
 
+    public String getLastUsedOutputDevice() {
+        return properties.getProperty("lastUsedOutputDevice", "");
+    }
+
+
+    public void setLastUsedOutputDevice(String uuid) {
+        properties.setProperty("lastUsedOutputDevice", uuid);
+        saveConfig();
+    }
+
     public boolean isAutoPasteEnabled() {
         return Boolean.parseBoolean(properties.getProperty("autoPaste", "true"));
     }
