@@ -481,7 +481,7 @@ public class RecorderForm extends javax.swing.JPanel {
 
     private boolean checkSettings() {
         boolean settingsSet = true;
-        if (configManager.getApiKey() == null || configManager.getApiKey().length() == 0) {
+        if ((configManager.getWhisperServer().equals("OpenAI") || configManager.getWhisperServer().isEmpty()) && (configManager.getApiKey() == null || configManager.getApiKey().length() == 0)) {
             Notificationmanager.getInstance().showNotification(ToastNotification.Type.WARNING,
                     "API Key must be set in options.");
             settingsSet = false;
