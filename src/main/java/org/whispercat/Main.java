@@ -16,7 +16,7 @@ public class Main {
 
     public static void main(String[] args) {
         // API-Key einfügen
-        String apiKey = "sk_912c13aa8e9a3a6693cdff7d267cf9080038c501f9905bc9";    // Deinen API-Key hier einfügen
+        String apiKey = "";    // Deinen API-Key hier einfügen
 
         // Die Voice-ID aus deinem Beispiel
         String voiceId = "RT0Ws4wraMnx4S5vInNL";
