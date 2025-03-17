@@ -229,6 +229,17 @@ public class AudioMixer {
         if (inputFile == null) {
             return null;
         }
+
+        if (inputFile.length() <= maxSizeBytes) {
+            // If the input file's size is less than or equal to maxSizeBytes, no splitting is needed.
+            List<File> parts = new ArrayList<>();
+            List<Long> offsets = new ArrayList<>();
+            // Add the original file as the only part.
+            parts.add(inputFile);
+            offsets.add(0L);
+            return new SplitResult(parts, offsets);
+        }
+
         List<File> parts = new ArrayList<>();
         List<Long> offsets = new ArrayList<>();
 

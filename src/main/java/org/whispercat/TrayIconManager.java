@@ -61,6 +61,7 @@ public class TrayIconManager {
         this.isRecording = recording;
         if (recordToggleMenuItem != null) {
             recordToggleMenuItem.setText(isRecording ? "Stop Recording" : "Start Recording");
+            recordToggleMenuItem.setEnabled(true);
         }
         // Update the tray icon:
         if (isRecording) {
@@ -70,6 +71,20 @@ public class TrayIconManager {
             setTrayImage(trayIconPath);
         }
     }
+
+    public void updateTrayForConverting() {
+        SwingWorker<Void, Void> worker = new SwingWorker<>() {
+            @Override
+            protected Void doInBackground() {
+                recordToggleMenuItem.setEnabled(false);
+                String convertingIconPath = "/whispercat_transforming.png";
+                setTrayImage(convertingIconPath);
+                return null;
+            }
+        };
+        worker.execute();
+    }
+
 
     private void setTrayImage(String imagePath) {
         try {

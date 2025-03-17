@@ -226,6 +226,8 @@ public class MainForm extends JLayeredPane {
                 String pathInJar = "/native/" + platform + "/" + arch + "/" + libFileName;
                 String outputPath = baseDir + "/" + platform + "/" + arch + "/" + libFileName;
                 File outputFile = new File(outputPath);
+                logger.info("pathInJar: " + pathInJar);
+                logger.info("Extracting native libraries to: " + outputPath);
                 if (!outputFile.exists()) {
                     outputFile.getParentFile().mkdirs();
                     try (InputStream is = getClass().getResourceAsStream(pathInJar);

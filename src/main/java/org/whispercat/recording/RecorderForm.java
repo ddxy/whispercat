@@ -631,6 +631,13 @@ public class RecorderForm extends javax.swing.JPanel {
         recordingLabel.setEnabled(false);
         recordButton.setText("Converting. Please wait...");
         recordButton.setEnabled(false);
+
+        // Update tray icon for converting status
+        TrayIconManager manager = AudioRecorderUI.getTrayIconManager();
+        if (manager != null) {
+            manager.updateTrayForConverting();
+        }
+
         if ((recordMicAndAudioRadioButton.isSelected() || recordAudioOnlyRadioButton.isSelected())) {
             outputProgressBar.setIndeterminate(false);
             outputProgressBar.setString("Idle");
