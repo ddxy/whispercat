@@ -19,7 +19,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: { node-version: 20 }
+        with: { node-version: 24 }
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Linux-Abhängigkeiten
@@ -28,7 +28,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libssl-dev libayatana-appindicator3-dev librsvg2-dev pkg-config libasound2-dev file libxdo-dev
 
-      - name: Cargo-Config (rust-lld für ubuntu-xdo)
+      - name: Cargo-Config (rust-lld)
         if: matrix.os == 'ubuntu-22.04'
         shell: bash
         run: |
@@ -41,11 +41,10 @@ jobs:
       - name: Frontend-Dependencies
         run: npm install
 
-      # Einfacher, bewährter Build ohne tauri-action-Wrapper (grífser Entscheid)
-      - name: Build (macOS/Linux)
+      - name: Build
         run: npm run tauri build
 
-      - name: Upload Artifacts zum nächsten Job
+      - name: Upload Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.os }}-artifacts
@@ -58,7 +57,7 @@ jobs:
   release:
     name: Release & Upload (automatisch für macOS/Linux)
     needs: build
-    if: always()   # ist erfolgreich, auch wenn der andere Build (z.B. Windows).
+    if: always()
     runs-on: ubuntu-latest
     steps:
       - name: Download aller Plattfrorm-Artefakte
@@ -67,17 +66,50 @@ jobs:
           path: release/
           pattern: '*-artifacts'
 
-      # Release mit Standard-ID, wenn Tag v* formatiert
-      - name: Release anlegen (upsert)
-        uses: softprops/action-gh-release@v2
+      - name: Auflistung nach dem GSummary tag्टग
+        shell: bash
+        run: |
+          ls -la release/
+
+      # Upload *Linux* Artifacts direkt per upload-release-action*)
+      - name: Upload Linux-Pakete
+        if: runner.os == 'Linux'
+        uses: svenstaro/upload-release-action@v2
         with:
-          tag_name: ${{ github.ref_name }}
-          name: ${{ github.ref_name }} — WhisperCat (macOS & Linux)
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file_glob: true
+          # Pattern sowohl auf der gleichen als auch 2x tiefer
+          file: |
+            release/macos-latest/WhisperCat_0.1.0_amd64.AppImage
+            release/ubuntu-22.04/whispercat_0.1.0_amd64.deb
+
+      # Upload *macOS* DMG direkt
+      - name: Upload macOS-DMG
+        if: runner.os == 'macOS'
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file_glob: true
+          file: |
+            release/macos-latest/WhisperCat_0.1.0_aarch64.dmg
+
+      - entry: Abschluss-Release anlegen falls nicht vorhanden
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: "${{ github.ref_name }}"
+          release_name: "${{ github.ref_name }} — WhisperCat Mac/Linux Alpha"
           draft: false
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') }}
-          files: |
-            release/*/*.dmg
-            release/*/*.AppImage
-            release/*/*.deb
-            release/*/*.appimage
-          fail_on_unmatched_files: true
+
+      - name: Upload hinzufügen (Release-Assets
+        shell: bash
+        run: |
+          for f in release/*/**/*.dmg release/*/**/*.AppImage release/*/**/*.deb release/*/**/*.appimage; do
+            [ -f "$f" ] || continue
+            echo "Hochladen: $f"
+            gh release upload "${{ github.ref_name }}" "$f" --clobber
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
