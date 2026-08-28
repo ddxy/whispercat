@@ -12,13 +12,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-22.04]
+        os: [macos-latest, ubuntu-22.04, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with: { node-version: 24 }
       - uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust-Cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
 
       - name: Linux-Abhängigkeiten
         if: matrix.os == 'ubuntu-22.04'
@@ -39,18 +44,20 @@ jobs:
           EOF
 
       - name: Frontend-Dependencies
+        shell: bash
         run: npm ci || npm install
 
       - name: Build
+        shell: bash
         run: npm run tauri build
 
-      # Alles flach in einen Ordner kopieren -> keine LCA-Überraschungen
       - name: Artefakte einsammeln
         shell: bash
         run: |
           mkdir -p dist
           find src-tauri/target -path '*/release/bundle/*' \
-            \( -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \) \
+            \( -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' \
+               -o -name '*.rpm' -o -name '*.msi' -o -name '*-setup.exe' \) \
             -exec cp -v {} dist/ \;
           ls -la dist
 
@@ -65,12 +72,11 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Artefakte herunterladen
-        uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4
         with:
           path: release
           pattern: '*-artifacts'
-          merge-multiple: true      # <- alles flach nach release/
+          merge-multiple: true
 
       - name: Debug
         run: find release -type f -printf '%s\t%p\n' | sort
@@ -81,6 +87,6 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ github.ref_name }}
           file: release/*
-          file_glob: true           # <- entscheidend
+          file_glob: true
           overwrite: true
           prerelease: ${{ contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
