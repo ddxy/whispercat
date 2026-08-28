@@ -66,15 +66,29 @@ jobs:
           path: release/
           pattern: '*-artifacts'
 
-      # Wir lassen das Release-Aufsetzen + alle Uploads kompatromise los von gha-Cliss
-      - name: Upload Installer zu GitHub Release
+      - name: Debug-Ausgabe aller verfügbaren Download-Ebenen
+        shell: bash
+        run: |
+          echo "=== .- Struktur in release/ ==="
+          find release -type f | sed 's|^release/||' | sort
+          echo "=== *.dateien auf macos-latest ==="
+          ls -la release/macos-latest/ | head -n 20 || true
+          echo "=== *.dateien auf ubuntu-latest ==="
+          ls -la release/ubuntu-22.04/ | head -n 20 || true
+
+      # Informell: Erweitere globale Struktur sodass wir die Dateien finden wenn sie in Unterordner liegen
+      - name: Upload macOS-DMG
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ github.ref_name }}
-          file_glob: true
-          file: |
-            release/**/*.dmg
-            release/**/*.AppImage
-            release/**/*.deb
-            release/**/*.appimage
+          file: release/macos-latest/*.dmg
+          overwrite: true
+
+      - name: Upload Linux-Pakete
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref_name }}
+          file: release/ubuntu-22.04/*.AppImage release/ubuntu-22.04/*.deb release/ubuntu-22.04/*.appimage
+          overwrite: true
