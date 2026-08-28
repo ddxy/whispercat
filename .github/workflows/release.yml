@@ -30,12 +30,16 @@ jobs:
       - name: Frontend-Dependencies
         run: npm install
 
-      # -- macOS & Linux mit tauri-action --
-      - name: Build & Release-Aufbau (macOS/Linux)
+      # macOS & Linux: tauri-action mit rust-lld
+      - name: Build & Build-Artefakte (macOS/Linux)
         if: runner.os != 'Windows'
-        run: npm run tauri build
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          args: "-- --use-bundler"
 
-      - name: Upload Linux/macOS-Assets
+      - name: Upload Linux/macOS-Artefakte
         if: runner.os != 'Windows'
         uses: actions/upload-artifact@v4
         with:
@@ -45,14 +49,13 @@ jobs:
             src-tauri/target/release/bundle/**/*.AppImage
             src-tauri/target/release/bundle/**/*.deb
             src-tauri/target/release/bundle/**/*.appimage
-            src-tauri/target/release/bundle/**/*.zip
           if-no-files-found: error
 
-      # -- Windows mit bash-Workaround --
-      - name: Build (Windows)
+      # Windows: bash-Workaround
+      - name: Build (Windows / Workaround in bash)
         if: runner.os == 'Windows'
         shell: bash
-        run: npm run tauri build || true  # fail-safe wegen tauri-action#753
+        run: npm run tauri build -- --use-bundler
 
       - name: Upload Windows-Installer
         if: runner.os == 'Windows'
@@ -65,12 +68,18 @@ jobs:
           if-no-files-found: warn
 
   release:
-    name: GitHub Release erstellen & Assets hochladen
+    name: GitHub Release (inkl. etwa leerer Artefakte)
     needs: build-platform
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Release anlegen
+      - name: Download gesammelter Artefakte
+        uses: actions/download-artifact@v4
+        with:
+          path: release/
+          pattern: '*-artifacts'
+
+      - name: Release anlegen/setzen (erstellt idempotent das Draft-Release)
         uses: actions/create-release@v1
         id: create_release
         env:
@@ -81,50 +90,41 @@ jobs:
           draft: false
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') }}
 
-      - name: Download aller Plattfrorm-Artefakte
-        uses: actions/download-artifact@v4
-        with:
-          path: release/
-          pattern: ${{ runner.os }}-artifacts
-
-      - name: Upload Debian/AppImage
+      - name: Upload Linux-Pakete
         if: runner.os == 'Linux'
+        shell: bash
         run: |
-          for f in release/*/*.AppImage release/*/*.deb; do
+          for f in release/*/WhisperCat*.AppImage release/*/*.deb; do
             [ -f "$f" ] || continue
-            curtain=${f##*-artifacts/}
-            if [[ "$curtain" == *artifacts* ]]; then
-              name="WhisperCat_${github_ref_name#sw@v}.${curtain##*.}"
-            else
-              name="${f##*/}"
-            fi
-            gh release upload "$TAG" "$f" --clobber
-          done
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REF_NAME: ${{ github.ref_name }}
-
-      - name: Upload macOS DMG
-        if: runner.os == 'macOS'
-        run: |
-          for f in release/*/*(dmg); do
-            [ -f "$f" ] || continue
-            echo "Uploading: $f"
+            echo "Upload Linux: $f"
             gh release upload "$TAG" "$f" --clobber
           done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
 
-      - name: Upload Windows
+      - name: Upload macOS-DMG
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          for f in release/*/*.dmg; do
+            [ -f "$f" ] || continue
+            echo "Upload macOS: $f"
+            gh release upload "$TAG" "$f" --clobber
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+
+      - name: Upload Windows-Installer (wenn erfolgreich)
         if: runner.os == 'Windows'
         shell: bash
         run: |
-          if ls release/*/*/WhisperCat*.exe 1>/dev/null 2>&1; then
-            gh release upload "$TAG" release/*/*/*.exe --clobber
-          else
-            echo "Windows-Build noch nicht bereit; überspringe"
-          fi
+          for f in release/*/*.exe release/*/*.msi; do
+            [ -f "$f" ] || continue
+            echo "Upload Windows: $f"
+            gh release upload "$TAG" "$f" --clobber
+          done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.ref_name }}
