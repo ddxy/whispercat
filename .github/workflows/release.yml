@@ -3,6 +3,7 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -33,7 +34,21 @@ jobs:
       - name: Frontend-Dependencies
         run: npm install
 
-      - name: Build & Release (alle Plattformen)
+      # -------- ==
+      # Workaround für Windows-Bug in tauri-action:
+      # Statt dem Standard 'npm run tauri build' trennen wir
+      # -- aber nur bei Windows.
+      - name: Build & Release (Windows / Workaround)
+        if: runner.os == 'Windows'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          beforeBuildCommand: echo kein-extra-command
+          tauriScript: ""   # Deaktiviert den 'npm run tauri'-Aufruf-Standards
+
+      - name: Build & Release (macOS / Linux)
+        if: runner.os != 'Windows'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
