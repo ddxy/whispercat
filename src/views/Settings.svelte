@@ -1,11 +1,13 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import { onDestroy, onMount } from 'svelte';
   import * as api from '../lib/backend';
   import { toast } from '../lib/toast';
   import type { Config } from '../lib/types';
 
   let cfg: Config | null = null;
   let devices: string[] = [];
+  let systemAudioSources: string[] = [];
+  let saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   onMount(async () => {
     try {
@@ -18,17 +20,47 @@
     } catch {
       devices = [];
     }
+    try {
+      systemAudioSources = await api.listSystemAudioSources();
+    } catch {
+      systemAudioSources = [];
+    }
   });
 
-  async function save() {
-    if (!cfg) return;
-    try {
-      await api.saveConfig(cfg);
-      toast('success', 'Settings saved.');
-    } catch (e) {
-      toast('error', String(e));
-    }
+  $: if (cfg) {
+    JSON.stringify(cfg);
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      try {
+        if (cfg) await api.saveConfig(cfg);
+      } catch (e) {
+        toast('error', String(e));
+      }
+    }, 350);
   }
+
+  onDestroy(() => {
+    if (saveTimer) clearTimeout(saveTimer);
+    if (cfg) void api.saveConfig(cfg).catch((e) => toast('error', String(e)));
+  });
+
+  async function detectMicrophone() {
+    if (!cfg) return;
+    const device = await api.detectDefaultInputDevice();
+    if (!device) return toast('error', 'No default microphone detected.');
+    cfg.mic_name = device;
+    toast('success', `Selected microphone: ${device}`);
+  }
+
+  async function detectSystemAudio() {
+    if (!cfg) return;
+    const source = await api.detectActiveSystemAudioSource();
+    if (!source) return toast('error', 'No active system-audio source detected.');
+    cfg.system_audio_source = source;
+    cfg.system_audio_enabled = true;
+    toast('success', `Selected system-audio source: ${source}`);
+  }
+
 </script>
 
 {#if cfg}
@@ -53,6 +85,36 @@
           {/each}
         </select>
       </label>
+      <button on:click={detectMicrophone}>Detect default microphone</button>
+
+      {#if systemAudioSources.length > 0}
+        <label class="row" style="margin-top: 10px;">
+          <input type="checkbox" bind:checked={cfg.system_audio_enabled} style="width: auto;" />
+          Record system audio
+        </label>
+        {#if cfg.system_audio_enabled}
+          <label>
+            System audio source
+            <select bind:value={cfg.system_audio_source}>
+              <option value={null}>Default output monitor</option>
+              {#each systemAudioSources as source}
+                <option value={source}>{source}</option>
+              {/each}
+            </select>
+          </label>
+          <button on:click={detectSystemAudio}>Detect active audio source</button>
+          <div class="row gain-controls">
+            <label>
+              Microphone level: {Math.round(cfg.mic_gain * 100)}%
+              <input type="range" min="0" max="2" step="0.05" bind:value={cfg.mic_gain} />
+            </label>
+            <label>
+              System audio level: {Math.round(cfg.system_audio_gain * 100)}%
+              <input type="range" min="0" max="2" step="0.05" bind:value={cfg.system_audio_gain} />
+            </label>
+          </div>
+        {/if}
+      {/if}
     </div>
 
     <div class="card">
@@ -79,7 +141,6 @@
       <p class="hint">The OpenAI or Open WebUI key is also used for post-processing prompts.</p>
     </div>
 
-    <button class="primary" on:click={save}>💾 Save</button>
   </div>
 {/if}
 
@@ -92,4 +153,6 @@
   }
   .server.selected { border-color: var(--accent); background: var(--accent); color: #fff; }
   .server input { width: auto; }
+  .gain-controls { align-items: flex-start; }
+  .gain-controls input { padding: 0; }
 </style>

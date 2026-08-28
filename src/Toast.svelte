@@ -10,8 +10,9 @@
 
 <style>
   .toasts {
-    position: fixed; top: 14px; right: 14px; z-index: 100;
+    position: fixed; bottom: 14px; right: 14px; z-index: 100;
     display: flex; flex-direction: column; gap: 8px; max-width: 380px;
+    pointer-events: none;
   }
   .toast {
     padding: 10px 16px; border-radius: 10px; color: #fff; font-size: 13px;

@@ -19,6 +19,10 @@ let mockConfig: Config = {
   owui_url: '',
   owui_key: '',
   mic_name: null,
+  system_audio_enabled: false,
+  system_audio_source: null,
+  mic_gain: 1,
+  system_audio_gain: 1,
   hotkey: 'Ctrl+Shift+R',
   auto_paste: true,
 };
@@ -79,6 +83,21 @@ export async function pasteText(text: string): Promise<void> {
 export async function listInputDevices(): Promise<string[]> {
   if (!isTauri) return ['Mock microphone 1', 'Mock microphone 2'];
   return invoke('list_input_devices');
+}
+
+export async function listSystemAudioSources(): Promise<string[]> {
+  if (!isTauri) return ['Default output monitor', 'Mock speaker monitor'];
+  return invoke('list_system_audio_sources');
+}
+
+export async function detectDefaultInputDevice(): Promise<string | null> {
+  if (!isTauri) return 'Mock microphone 1';
+  return invoke('detect_default_input_device');
+}
+
+export async function detectActiveSystemAudioSource(): Promise<string | null> {
+  if (!isTauri) return 'Default output monitor';
+  return invoke('detect_active_system_audio_source');
 }
 
 // ---------- Config ----------

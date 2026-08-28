@@ -41,7 +41,10 @@ pub fn parse_shortcut(spec: &str) -> Result<Shortcut, String> {
     }
 
     let code = parse_code(key_token)?;
-    Ok(Shortcut::new(if mods.is_empty() { None } else { Some(mods) }, code))
+    Ok(Shortcut::new(
+        if mods.is_empty() { None } else { Some(mods) },
+        code,
+    ))
 }
 
 fn parse_code(token: &str) -> Result<Code, String> {
@@ -49,9 +52,18 @@ fn parse_code(token: &str) -> Result<Code, String> {
     if let Some(rest) = t.strip_prefix('F') {
         if let Ok(n) = rest.parse::<u8>() {
             return Ok(match n {
-                1 => Code::F1, 2 => Code::F2, 3 => Code::F3, 4 => Code::F4,
-                5 => Code::F5, 6 => Code::F6, 7 => Code::F7, 8 => Code::F8,
-                9 => Code::F9, 10 => Code::F10, 11 => Code::F11, 12 => Code::F12,
+                1 => Code::F1,
+                2 => Code::F2,
+                3 => Code::F3,
+                4 => Code::F4,
+                5 => Code::F5,
+                6 => Code::F6,
+                7 => Code::F7,
+                8 => Code::F8,
+                9 => Code::F9,
+                10 => Code::F10,
+                11 => Code::F11,
+                12 => Code::F12,
                 _ => return Err(format!("Unbekannte F-Taste: F{n}")),
             });
         }
@@ -84,23 +96,46 @@ fn parse_code(token: &str) -> Result<Code, String> {
         let b = t.as_bytes()[0];
         if b.is_ascii_uppercase() {
             return Ok(match b {
-                b'A' => Code::KeyA, b'B' => Code::KeyB, b'C' => Code::KeyC,
-                b'D' => Code::KeyD, b'E' => Code::KeyE, b'F' => Code::KeyF,
-                b'G' => Code::KeyG, b'H' => Code::KeyH, b'I' => Code::KeyI,
-                b'J' => Code::KeyJ, b'K' => Code::KeyK, b'L' => Code::KeyL,
-                b'M' => Code::KeyM, b'N' => Code::KeyN, b'O' => Code::KeyO,
-                b'P' => Code::KeyP, b'Q' => Code::KeyQ, b'R' => Code::KeyR,
-                b'S' => Code::KeyS, b'T' => Code::KeyT, b'U' => Code::KeyU,
-                b'V' => Code::KeyV, b'W' => Code::KeyW, b'X' => Code::KeyX,
-                b'Y' => Code::KeyY, b'Z' => Code::KeyZ,
+                b'A' => Code::KeyA,
+                b'B' => Code::KeyB,
+                b'C' => Code::KeyC,
+                b'D' => Code::KeyD,
+                b'E' => Code::KeyE,
+                b'F' => Code::KeyF,
+                b'G' => Code::KeyG,
+                b'H' => Code::KeyH,
+                b'I' => Code::KeyI,
+                b'J' => Code::KeyJ,
+                b'K' => Code::KeyK,
+                b'L' => Code::KeyL,
+                b'M' => Code::KeyM,
+                b'N' => Code::KeyN,
+                b'O' => Code::KeyO,
+                b'P' => Code::KeyP,
+                b'Q' => Code::KeyQ,
+                b'R' => Code::KeyR,
+                b'S' => Code::KeyS,
+                b'T' => Code::KeyT,
+                b'U' => Code::KeyU,
+                b'V' => Code::KeyV,
+                b'W' => Code::KeyW,
+                b'X' => Code::KeyX,
+                b'Y' => Code::KeyY,
+                b'Z' => Code::KeyZ,
                 _ => unreachable!(),
             });
         }
         if b.is_ascii_digit() {
             return Ok(match b {
-                b'0' => Code::Digit0, b'1' => Code::Digit1, b'2' => Code::Digit2,
-                b'3' => Code::Digit3, b'4' => Code::Digit4, b'5' => Code::Digit5,
-                b'6' => Code::Digit6, b'7' => Code::Digit7, b'8' => Code::Digit8,
+                b'0' => Code::Digit0,
+                b'1' => Code::Digit1,
+                b'2' => Code::Digit2,
+                b'3' => Code::Digit3,
+                b'4' => Code::Digit4,
+                b'5' => Code::Digit5,
+                b'6' => Code::Digit6,
+                b'7' => Code::Digit7,
+                b'8' => Code::Digit8,
                 b'9' => Code::Digit9,
                 _ => unreachable!(),
             });

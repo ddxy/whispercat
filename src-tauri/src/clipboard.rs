@@ -18,7 +18,9 @@ pub async fn copy_and_maybe_paste(text: &str, auto_paste: bool) -> Result<(), St
         {
             let cb = clipboard()?;
             let mut guard = cb.lock().map_err(|e| e.to_string())?;
-            guard.set_text(text).map_err(|e| format!("Zwischenablage: {e}"))?;
+            guard
+                .set_text(text)
+                .map_err(|e| format!("Zwischenablage: {e}"))?;
         }
         if auto_paste {
             // Kurze Pause, damit die Zielanwendung Fokus/Clipboard "merkt"
@@ -37,7 +39,11 @@ fn simulate_paste() -> Result<(), String> {
     let mut enigo =
         Enigo::new(&Settings::default()).map_err(|e| format!("Auto-Paste (enigo): {e}"))?;
     // macOS: Cmd+V, sonst: Ctrl+V
-    let modifier = if cfg!(target_os = "macos") { Key::Meta } else { Key::Control };
+    let modifier = if cfg!(target_os = "macos") {
+        Key::Meta
+    } else {
+        Key::Control
+    };
     enigo
         .key(modifier, Direction::Press)
         .map_err(|e| format!("Auto-Paste: {e}"))?;

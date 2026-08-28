@@ -9,6 +9,10 @@ export interface Config {
   owui_url: string;
   owui_key: string;
   mic_name: string | null;
+  system_audio_enabled: boolean;
+  system_audio_source: string | null;
+  mic_gain: number;
+  system_audio_gain: number;
   hotkey: string;
   auto_paste: boolean;
 }

@@ -27,7 +27,13 @@ impl AppState {
 #[tauri::command]
 fn start_recording(state: State<AppState>) -> Result<(), String> {
     let cfg = state.config();
-    state.rec.start(cfg.mic_name.filter(|m| !m.is_empty()))
+    state.rec.start(
+        cfg.mic_name.filter(|mic| !mic.is_empty()),
+        cfg.system_audio_enabled,
+        cfg.system_audio_source.filter(|source| !source.is_empty()),
+        cfg.mic_gain,
+        cfg.system_audio_gain,
+    )
 }
 
 #[tauri::command]
@@ -39,7 +45,9 @@ fn stop_recording(state: State<AppState>) -> Result<String, String> {
 #[tauri::command]
 async fn transcribe_audio(state: State<'_, AppState>, path: String) -> Result<String, String> {
     let cfg = state.config();
-    transcribe::transcribe(&cfg, &path).await.map_err(|e| e.to_string())
+    transcribe::transcribe(&cfg, &path)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -63,6 +71,21 @@ async fn paste_text(state: State<'_, AppState>, text: String) -> Result<(), Stri
 #[tauri::command]
 fn list_input_devices() -> Vec<String> {
     recorder::list_input_devices()
+}
+
+#[tauri::command]
+fn list_system_audio_sources() -> Vec<String> {
+    recorder::list_system_audio_sources()
+}
+
+#[tauri::command]
+fn detect_default_input_device() -> Option<String> {
+    recorder::detect_default_input_device()
+}
+
+#[tauri::command]
+fn detect_active_system_audio_source() -> Option<String> {
+    recorder::detect_active_system_audio_source()
 }
 
 #[tauri::command]
@@ -164,6 +187,9 @@ pub fn run() {
             postprocess_text,
             paste_text,
             list_input_devices,
+            list_system_audio_sources,
+            detect_default_input_device,
+            detect_active_system_audio_source,
             get_config,
             save_config,
             list_postprocessings,

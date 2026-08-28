@@ -38,7 +38,12 @@ pub async fn apply(cfg: &Config, pp: &PostProcessing, input: &str) -> Result<Str
     for step in &pp.steps {
         text = match step {
             Step::Replace { from, to } => text.replace(from.as_str(), to),
-            Step::Prompt { provider, model, system_prompt, user_prompt } => {
+            Step::Prompt {
+                provider,
+                model,
+                system_prompt,
+                user_prompt,
+            } => {
                 let user = user_prompt.replace("{{input}}", &text);
                 chat(cfg, provider, model, system_prompt, &user).await?
             }
@@ -56,7 +61,10 @@ async fn chat(
 ) -> Result<String> {
     let (url, key) = match provider.to_lowercase().replace(' ', "-").as_str() {
         "open-webui" | "openwebui" => (
-            format!("{}/api/chat/completions", cfg.owui_url.trim().trim_end_matches('/')),
+            format!(
+                "{}/api/chat/completions",
+                cfg.owui_url.trim().trim_end_matches('/')
+            ),
             cfg.owui_key.clone(),
         ),
         _ => (
@@ -83,7 +91,8 @@ async fn chat(
     if !status.is_success() {
         anyhow::bail!("API-Fehler ({status}): {body_text}");
     }
-    let json: serde_json::Value = serde_json::from_str(&body_text).context("Ungültige JSON-Antwort")?;
+    let json: serde_json::Value =
+        serde_json::from_str(&body_text).context("Ungültige JSON-Antwort")?;
     Ok(json["choices"][0]["message"]["content"]
         .as_str()
         .unwrap_or_default()

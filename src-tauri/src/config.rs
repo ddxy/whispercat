@@ -14,6 +14,10 @@ pub struct Config {
     pub owui_url: String,
     pub owui_key: String,
     pub mic_name: Option<String>,
+    pub system_audio_enabled: bool,
+    pub system_audio_source: Option<String>,
+    pub mic_gain: f32,
+    pub system_audio_gain: f32,
     pub hotkey: String,
     pub auto_paste: bool,
 }
@@ -29,6 +33,10 @@ impl Default for Config {
             owui_url: String::new(),
             owui_key: String::new(),
             mic_name: None,
+            system_audio_enabled: false,
+            system_audio_source: None,
+            mic_gain: 1.0,
+            system_audio_gain: 1.0,
             hotkey: "Ctrl+Shift+R".to_string(),
             auto_paste: true,
         }
@@ -111,7 +119,11 @@ fn migrate_legacy() -> Option<Config> {
 
     let mut cfg = Config::default();
     cfg.api_key = get("apiKey");
-    cfg.whisper_server = match get("whisperServer").to_lowercase().replace(' ', "-").as_str() {
+    cfg.whisper_server = match get("whisperServer")
+        .to_lowercase()
+        .replace(' ', "-")
+        .as_str()
+    {
         "faster-whisper" => "faster-whisper".to_string(),
         "open-webui" | "openwebui" => "open-webui".to_string(),
         _ => "openai".to_string(),
