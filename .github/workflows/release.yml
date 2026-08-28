@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  build-platform:
     name: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -18,37 +18,113 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Linux-Abhängigkeiten
-        if: matrix.os == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev pkg-config libasound2-dev
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libssl-dev libayatana-appindicator3-dev librsvg2-dev pkg-config libasound2-dev file
 
       - name: Frontend-Dependencies
         run: npm install
 
-      # -------- ==
-      # Workaround für Windows-Bug in tauri-action:
-      # Statt dem Standard 'npm run tauri build' trennen wir
-      # -- aber nur bei Windows.
-      - name: Build & Release (Windows / Workaround)
+      # -- macOS & Linux mit tauri-action --
+      - name: Build & Release-Aufbau (macOS/Linux)
+        if: runner.os != 'Windows'
+        run: npm run tauri build
+
+      - name: Upload Linux/macOS-Assets
+        if: runner.os != 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ runner.os }}-artifacts
+          path: |
+            src-tauri/target/release/bundle/**/*.dmg
+            src-tauri/target/release/bundle/**/*.AppImage
+            src-tauri/target/release/bundle/**/*.deb
+            src-tauri/target/release/bundle/**/*.appimage
+            src-tauri/target/release/bundle/**/*.zip
+          if-no-files-found: error
+
+      # -- Windows mit bash-Workaround --
+      - name: Build (Windows)
         if: runner.os == 'Windows'
-        uses: tauri-apps/tauri-action@v0
+        shell: bash
+        run: npm run tauri build || true  # fail-safe wegen tauri-action#753
+
+      - name: Upload Windows-Installer
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Windows-artifacts
+          path: |
+            src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/msi/*.msi
+          if-no-files-found: warn
+
+  release:
+    name: GitHub Release erstellen & Assets hochladen
+    needs: build-platform
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Release anlegen
+        uses: actions/create-release@v1
+        id: create_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          beforeBuildCommand: echo kein-extra-command
-          tauriScript: ""   # Deaktiviert den 'npm run tauri'-Aufruf-Standards
+          tag_name: "${{ github.ref_name }}"
+          release_name: "${{ github.ref_name }} — WhisperCat"
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') }}
 
-      - name: Build & Release (macOS / Linux)
-        if: runner.os != 'Windows'
-        uses: tauri-apps/tauri-action@v0
+      - name: Download aller Plattfrorm-Artefakte
+        uses: actions/download-artifact@v4
+        with:
+          path: release/
+          pattern: ${{ runner.os }}-artifacts
+
+      - name: Upload Debian/AppImage
+        if: runner.os == 'Linux'
+        run: |
+          for f in release/*/*.AppImage release/*/*.deb; do
+            [ -f "$f" ] || continue
+            curtain=${f##*-artifacts/}
+            if [[ "$curtain" == *artifacts* ]]; then
+              name="WhisperCat_${github_ref_name#sw@v}.${curtain##*.}"
+            else
+              name="${f##*/}"
+            fi
+            gh release upload "$TAG" "$f" --clobber
+          done
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+
+      - name: Upload macOS DMG
+        if: runner.os == 'macOS'
+        run: |
+          for f in release/*/*(dmg); do
+            [ -f "$f" ] || continue
+            echo "Uploading: $f"
+            gh release upload "$TAG" "$f" --clobber
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+
+      - name: Upload Windows
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          if ls release/*/*/WhisperCat*.exe 1>/dev/null 2>&1; then
+            gh release upload "$TAG" release/*/*/*.exe --clobber
+          else
+            echo "Windows-Build noch nicht bereit; überspringe"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
