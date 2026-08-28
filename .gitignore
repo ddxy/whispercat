@@ -40,3 +40,10 @@ build/
 /.idea/encodings.xml
 /.idea/misc.xml
 /.idea/vcs.xml
+
+node_modules
+dist
+src-tauri/target
+src-tauri/gen
+*.log
+.DS_Store

@@ -1,0 +1,17 @@
+{
+  "name": "WhisperCat",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "package": "jdeploy package"
+  },
+  "jdeploy": {
+    "jar": "target/Audiorecorder-1.0-SNAPSHOT-jar-with-dependencies.jar",
+    "javaVersion": "11",
+    "title": "WhisperCat",
+    "installers" : ["mac-x64", "mac-arm64", "win", "linux"]
+  },
+  "devDependencies": {
+    "jdeploy": "^4.0.0"
+  }
+}
