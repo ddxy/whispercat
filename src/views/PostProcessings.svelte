@@ -16,7 +16,7 @@
   });
 
   function newPP() {
-    current = { uuid: '', title: 'Neues Post-Processing', description: '', steps: [] };
+    current = { uuid: '', title: 'New post-processing', description: '', steps: [] };
   }
 
   function select(pp: PostProcessing) {
@@ -48,7 +48,7 @@
       const saved = await api.upsertPostprocessing(current);
       current = JSON.parse(JSON.stringify(saved));
       pps = await api.listPostprocessings();
-      toast('success', 'Gespeichert.');
+      toast('success', 'Saved.');
     } catch (e) {
       toast('error', String(e));
     }
@@ -68,7 +68,7 @@
 
 <div class="columns">
   <aside>
-    <button class="primary new" on:click={newPP}>＋ Neues Post-Processing</button>
+    <button class="primary new" on:click={newPP}>＋ New post-processing</button>
     <ul>
       {#each pps as pp}
         <li>
@@ -77,32 +77,32 @@
           </button>
         </li>
       {/each}
-      {#if pps.length === 0}<li class="hint">Noch keine Einträge.</li>{/if}
+      {#if pps.length === 0}<li class="hint">No entries yet.</li>{/if}
     </ul>
   </aside>
 
   {#if current}
     <section class="editor">
       <div class="card">
-        <label>Titel <input bind:value={current.title} /></label>
-        <label>Beschreibung <input bind:value={current.description} /></label>
+        <label>Title <input bind:value={current.title} /></label>
+        <label>Description <input bind:value={current.description} /></label>
       </div>
 
       {#each current.steps as step, i}
         <div class="card">
           <div class="row" style="margin-bottom: 12px;">
             <select value={step.type} on:change={(e) => setType(i, (e.currentTarget as HTMLSelectElement).value as 'prompt' | 'replace')} style="max-width: 220px;">
-              <option value="prompt">🧠 Prompt (KI)</option>
-              <option value="replace">🔁 Text-Ersetzung</option>
+              <option value="prompt">🧠 Prompt (AI)</option>
+              <option value="replace">🔁 Text replacement</option>
             </select>
             <span class="spacer"></span>
-            <button class="danger" on:click={() => removeStep(i)} title="Schritt entfernen">🗑</button>
+            <button class="danger" on:click={() => removeStep(i)} title="Remove step">🗑</button>
           </div>
 
           {#if step.type === 'replace'}
             <div class="row">
-              <label>Suchen nach <input bind:value={step.from} /></label>
-              <label>Ersetzen durch <input bind:value={step.to} /></label>
+              <label>Search for <input bind:value={step.from} /></label>
+              <label>Replace with <input bind:value={step.to} /></label>
             </div>
           {:else}
             <div class="row">
@@ -110,22 +110,21 @@
                 Provider
                 <select bind:value={step.provider}>
                   <option value="openai">OpenAI</option>
-                  <option value="open-webui">Open WebUI</option>
                 </select>
               </label>
-              <label>Modell <input bind:value={step.model} placeholder="gpt-4o-mini" /></label>
+              <label>Model <input bind:value={step.model} placeholder="gpt-4o-mini" /></label>
             </div>
-            <label style="margin-top: 12px;">System-Prompt <textarea rows="2" bind:value={step.system_prompt}></textarea></label>
-            <label>User-Prompt (mit &#123;&#123;input&#125;&#125; als Platzhalter für den vorigen Text) <textarea rows="3" bind:value={step.user_prompt}></textarea></label>
+            <label style="margin-top: 12px;">System prompt <textarea rows="2" bind:value={step.system_prompt}></textarea></label>
+            <label>User prompt (with &#123;&#123;input&#125;&#125; as a placeholder for the previous text) <textarea rows="3" bind:value={step.user_prompt}></textarea></label>
           {/if}
         </div>
       {/each}
 
       <div class="row">
-        <button on:click={addStep}>＋ Schritt hinzufügen</button>
+        <button on:click={addStep}>＋ Add step</button>
         <span class="spacer"></span>
-        <button class="danger" on:click={remove}>Löschen</button>
-        <button class="primary" on:click={save}>💾 Speichern</button>
+        <button class="danger" on:click={remove}>Delete</button>
+        <button class="primary" on:click={save}>💾 Save</button>
       </div>
     </section>
   {/if}

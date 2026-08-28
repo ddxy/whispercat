@@ -24,7 +24,7 @@
     if (!cfg) return;
     try {
       await api.saveConfig(cfg);
-      toast('success', 'Einstellungen gespeichert.');
+      toast('success', 'Settings saved.');
     } catch (e) {
       toast('error', String(e));
     }
@@ -34,20 +34,20 @@
 {#if cfg}
   <div class="settings">
     <div class="card">
-      <h2>Allgemein</h2>
+      <h2>General</h2>
       <label>
-        Hotkey zum Starten/Stoppen (z.B. „Ctrl+Shift+R“, „Alt+F9“)
+        Hotkey to start/stop (e.g. “Ctrl+Shift+R”, “Alt+F9”)
         <input bind:value={cfg.hotkey} placeholder="Ctrl+Shift+R" />
       </label>
-      <p class="hint">Modifiers: ctrl, shift, alt, super/cmd. Tasten: A–Z, 0–9, F1–F12, space, enter, tab, esc… Hinweis: unter Wayland sind globale Hotkeys ggf. eingeschränkt.</p>
+      <p class="hint">Modifiers: ctrl, shift, alt, super/cmd. Keys: A–Z, 0–9, F1–F12, space, enter, tab, esc… Note: global hotkeys may be limited under Wayland.</p>
       <label class="row" style="margin-top: 10px;">
         <input type="checkbox" bind:checked={cfg.auto_paste} style="width: auto;" />
-        Text nach Transkription automatisch einfügen (simuliert Ctrl+V)
+        Automatically paste text after transcription (simulates Ctrl+V)
       </label>
       <label style="margin-top: 14px;">
-        Mikrofon (leer = Systemstandard)
+        Microphone (empty = system default)
         <select bind:value={cfg.mic_name}>
-          <option value={null}>Systemstandard</option>
+          <option value={null}>System default</option>
           {#each devices as d}
             <option value={d}>{d}</option>
           {/each}
@@ -58,7 +58,7 @@
     <div class="card">
       <h2>Whisper-Backend</h2>
       <div class="row servers">
-        {#each [['openai', 'OpenAI'], ['faster-whisper', 'Faster-Whisper'], ['open-webui', 'Open WebUI']] as s}
+        {#each [['openai', 'OpenAI'], ['faster-whisper', 'Faster-Whisper']] as s}
           <label class="row server" class:selected={cfg.whisper_server === s[0]}>
             <input type="radio" bind:group={cfg.whisper_server} value={s[0]} />
             {s[1]}
@@ -67,19 +67,19 @@
       </div>
 
       {#if cfg.whisper_server === 'openai'}
-        <label>OpenAI API-Key <input type="password" bind:value={cfg.api_key} placeholder="sk-…" /></label>
+        <label>OpenAI API key <input type="password" bind:value={cfg.api_key} placeholder="sk-…" /></label>
       {:else if cfg.whisper_server === 'faster-whisper'}
-        <label>Server-URL <input bind:value={cfg.faster_url} placeholder="http://localhost:8000" /></label>
-        <label>Modell <input bind:value={cfg.faster_model} placeholder="Systran/faster-whisper-base" /></label>
-        <label>Sprache (z.B. „de“, leer = automatisch) <input bind:value={cfg.faster_language} /></label>
+        <label>Server URL <input bind:value={cfg.faster_url} placeholder="http://localhost:8000" /></label>
+        <label>Model <input bind:value={cfg.faster_model} placeholder="Systran/faster-whisper-base" /></label>
+        <label>Language (e.g. “de”, empty = automatic) <input bind:value={cfg.faster_language} /></label>
       {:else}
-        <label>Server-URL <input bind:value={cfg.owui_url} placeholder="https://dein-openwebui-host" /></label>
-        <label>API-Key <input type="password" bind:value={cfg.owui_key} /></label>
+        <label>Server URL <input bind:value={cfg.owui_url} placeholder="https://your-openwebui-host" /></label>
+        <label>API key <input type="password" bind:value={cfg.owui_key} /></label>
       {/if}
-      <p class="hint">Der OpenAI- bzw. Open-WebUI-Key wird auch für Post-Processing-Prompts genutzt.</p>
+      <p class="hint">The OpenAI or Open WebUI key is also used for post-processing prompts.</p>
     </div>
 
-    <button class="primary" on:click={save}>💾 Speichern</button>
+    <button class="primary" on:click={save}>💾 Save</button>
   </div>
 {/if}
 

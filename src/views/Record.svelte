@@ -39,7 +39,7 @@
       }
       return;
     }
-    // Stoppen + verarbeiten
+    // Stop + process
     recording = false;
     busy = true;
     try {
@@ -49,15 +49,15 @@
       let finalText = raw;
       const pp = pps.find((p) => p.uuid === selectedUuid);
       if (usePP && pp) {
-        toast('info', 'Post-Processing läuft …');
+        toast('info', 'Post-processing running …');
         processed = await api.postprocess(pp, raw);
         finalText = processed;
       }
       try {
         await api.pasteText(finalText);
-        toast('success', autoPaste ? 'Fertig! Text eingefügt.' : 'Fertig! Text in Zwischenablage.');
+        toast('success', autoPaste ? 'Done! Text pasted.' : 'Done! Text copied to clipboard.');
       } catch (e) {
-        toast('error', 'Zwischenablage/Auto-Paste fehlgeschlagen: ' + String(e));
+        toast('error', 'Clipboard/auto-paste failed: ' + String(e));
       }
     } catch (e) {
       toast('error', String(e));
@@ -72,12 +72,12 @@
     {#if busy}⌛{:else if recording}⏹{:else}🎙{/if}
   </button>
   <p class="status">
-    {#if busy}Verarbeite …{:else if recording}Aufnahme läuft — klicke oder drücke den Hotkey zum Stoppen{:else}Bereit{/if}
+    {#if busy}Processing …{:else if recording}Recording — click or press the hotkey to stop{:else}Ready{/if}
   </p>
 
   <div class="card">
-    <h2>Transkript</h2>
-    <textarea bind:value={raw} rows="4" placeholder="Das Transkript erscheint hier …"></textarea>
+    <h2>Transcript</h2>
+    <textarea bind:value={raw} rows="4" placeholder="The transcript will appear here …"></textarea>
   </div>
 
   {#if processed}
@@ -91,7 +91,7 @@
     <div class="card">
       <label class="row">
         <input type="checkbox" bind:checked={usePP} />
-        Post-Processing nach jeder Aufnahme anwenden
+        Apply post-processing after each recording
       </label>
       {#if usePP}
         <select bind:value={selectedUuid}>

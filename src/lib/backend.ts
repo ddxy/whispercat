@@ -1,6 +1,6 @@
-// Dünne Client-Schicht: kapselt alle Tauri-Commands.
-// Läuft das Frontend im normalen Browser (kein __TAURI_INTERNALS__),
-// werden Mocks geliefert, damit UI-Entwicklung ohne native Deps funktioniert.
+// Thin client layer: encapsulates all Tauri commands.
+// When the frontend runs in a regular browser (without __TAURI_INTERNALS__),
+// mocks are provided so UI development works without native dependencies.
 
 import { invoke } from '@tauri-apps/api/core';
 import type { Config, PostProcessing } from './types.ts';
@@ -9,7 +9,7 @@ const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-// ---------- Mock-State für den Browser-Dev-Modus ----------
+// ---------- Mock state for browser development mode ----------
 let mockConfig: Config = {
   whisper_server: 'openai',
   api_key: '',
@@ -25,22 +25,22 @@ let mockConfig: Config = {
 let mockPps: PostProcessing[] = [
   {
     uuid: 'demo-1',
-    title: 'Demo: Füllwörter entfernen',
-    description: 'Mock-Eintrag aus dem Browser-Modus',
+    title: 'Demo: Remove filler words',
+    description: 'Mock entry from browser mode',
     steps: [
       {
         type: 'prompt',
         provider: 'openai',
         model: 'gpt-4o-mini',
-        system_prompt: 'Entferne Füllwörter und Unflüssigkeiten aus dem Text.',
-        user_prompt: 'Bereinige dieses Transkript:\n{{input}}',
+        system_prompt: 'Remove filler words and disfluencies from the text.',
+        user_prompt: 'Clean up this transcript:\n{{input}}',
       },
       { type: 'replace', from: '  ', to: ' ' },
     ],
   },
 ];
 
-// ---------- Recording / Transkription ----------
+// ---------- Recording / transcription ----------
 
 export async function startRecording(): Promise<void> {
   if (!isTauri) return void console.log('[mock] startRecording');
@@ -53,12 +53,12 @@ export async function stopRecording(): Promise<string> {
 }
 
 export async function transcribe(path: string): Promise<string> {
-  if (!isTauri) return sleep(600).then(() => 'Mock-Transkript aus dem Browser-Dev-Modus. Starte mit "npm run tauri dev" für echte Transkription.');
+  if (!isTauri) return sleep(600).then(() => 'Mock transcript from browser development mode. Run "npm run tauri dev" for real transcription.');
   return invoke('transcribe_audio', { path });
 }
 
 export async function postprocess(pp: PostProcessing, text: string): Promise<string> {
-  if (!isTauri) return sleep(500).then(() => `[Mock-PP "${pp.title}"] ${text}`);
+  if (!isTauri) return sleep(500).then(() => `[Mock PP "${pp.title}"] ${text}`);
   return invoke('postprocess_text', { pp, text });
 }
 
@@ -67,17 +67,17 @@ export async function pasteText(text: string): Promise<void> {
     try {
       await navigator.clipboard.writeText(text);
     } catch {
-      console.log('[mock] Zwischenablage nicht verfügbar (nur HTTPS).');
+      console.log('[mock] Clipboard unavailable (HTTPS only).');
     }
     return;
   }
   return invoke('paste_text', { text });
 }
 
-// ---------- Geräte ----------
+// ---------- Devices ----------
 
 export async function listInputDevices(): Promise<string[]> {
-  if (!isTauri) return ['Mock-Mikrofon 1', 'Mock-Mikrofon 2'];
+  if (!isTauri) return ['Mock microphone 1', 'Mock microphone 2'];
   return invoke('list_input_devices');
 }
 
@@ -121,7 +121,7 @@ export async function deletePostprocessing(uuid: string): Promise<void> {
   return invoke('delete_postprocessing', { uuid });
 }
 
-// ---------- Hotkey-Event vom Backend (Tray / Global Shortcut) ----------
+// ---------- Hotkey event from the backend (tray / global shortcut) ----------
 
 export async function onHotkey(cb: () => void): Promise<() => void> {
   if (!isTauri) return () => {};

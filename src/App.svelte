@@ -11,9 +11,9 @@
   <header>
     <h1>🐱 WhisperCat</h1>
     <nav>
-      <button class:active={tab === 'record'} on:click={() => (tab = 'record')}>🎙 Aufnahme</button>
+      <button class:active={tab === 'record'} on:click={() => (tab = 'record')}>🎙 Recording</button>
       <button class:active={tab === 'pp'} on:click={() => (tab = 'pp')}>⚙ Post-Processing</button>
-      <button class:active={tab === 'settings'} on:click={() => (tab = 'settings')}>🔧 Einstellungen</button>
+      <button class:active={tab === 'settings'} on:click={() => (tab = 'settings')}>🔧 Settings</button>
     </nav>
   </header>
 

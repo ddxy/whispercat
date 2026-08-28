@@ -47,3 +47,5 @@ src-tauri/target
 src-tauri/gen
 *.log
 .DS_Store
+.claude
+CLAUDE.md

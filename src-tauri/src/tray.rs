@@ -5,9 +5,9 @@ use tauri::{
 };
 
 pub fn setup(app: &App) -> Result<(), Box<dyn std::error::Error>> {
-    let open = MenuItem::with_id(app, "open", "Öffnen", true, None::<&str>)?;
-    let toggle = MenuItem::with_id(app, "toggle", "Aufnahme starten/stoppen", true, None::<&str>)?;
-    let quit = MenuItem::with_id(app, "quit", "Beenden", true, None::<&str>)?;
+    let open = MenuItem::with_id(app, "open", "Open", true, None::<&str>)?;
+    let toggle = MenuItem::with_id(app, "toggle", "Start/Stop Recording", true, None::<&str>)?;
+    let quit = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
     let menu = Menu::with_items(app, &[&open, &toggle, &quit])?;
 
     let icon = app

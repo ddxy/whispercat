@@ -1,4 +1,4 @@
-// Spiegelt die Rust-Structs (serde, snake_case) in src-tauri/src
+// Mirrors the Rust structs (serde, snake_case) in src-tauri/src
 
 export interface Config {
   whisper_server: 'openai' | 'faster-whisper' | 'open-webui';
