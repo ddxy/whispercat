@@ -28,7 +28,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libssl-dev libayatana-appindicator3-dev librsvg2-dev pkg-config libasound2-dev file libxdo-dev
 
-      - name: Cargo-Config (für rust-lld)
+      - name: Cargo-Config (rust-lld für ubuntu-xdo)
         if: matrix.os == 'ubuntu-22.04'
         shell: bash
         run: |
@@ -41,42 +41,43 @@ jobs:
       - name: Frontend-Dependencies
         run: npm install
 
-      - name: Tauri Build
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Einfacher, bewährter Build ohne tauri-action-Wrapper (grífser Entscheid)
+      - name: Build (macOS/Linux)
+        run: npm run tauri build
+
+      - name: Upload Artifacts zum nächsten Job
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.os }}-artifacts
+          path: |
+            src-tauri/target/release/bundle/**/*.dmg
+            src-tauri/target/release/bundle/**/*.AppImage
+            src-tauri/target/release/bundle/*.deb/*.deb
+          if-no-files-found: error
 
   release:
-    name: GitHub Release (inkl. OSX+Linux Paketen)
+    name: Release & Upload (automatisch für macOS/Linux)
     needs: build
-    if: always()
+    if: always()   # ist erfolgreich, auch wenn der andere Build (z.B. Windows).
     runs-on: ubuntu-latest
     steps:
-      - name: Download aller Artefakte
+      - name: Download aller Plattfrorm-Artefakte
         uses: actions/download-artifact@v4
         with:
           path: release/
           pattern: '*-artifacts'
 
-      - name: Release anlegen
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      # Release mit Standard-ID, wenn Tag v* formatiert
+      - name: Release anlegen (upsert)
+        uses: softprops/action-gh-release@v2
         with:
-          tag_name: "${{ github.ref_name }}"
-          release_name: "${{ github.ref_name }} — WhisperCat (macOS & Linux Alpha)"
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }} — WhisperCat (macOS & Linux)
           draft: false
           prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') }}
-
-      - name: Upload Installer (dmg/AppImage/deb)
-        shell: bash
-        run: |
-          for pattern in dmg AppImage deb appimage; do
-            for f in release/*/*."$pattern"; do
-              [ -f "$f" ] || continue
-              echo "Upload: $f"
-              gh release upload "${{ github.ref_name }}" "$f" --clobber
-            done
-          done
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          files: |
+            release/*/*.dmg
+            release/*/*.AppImage
+            release/*/*.deb
+            release/*/*.appimage
+          fail_on_unmatched_files: true
