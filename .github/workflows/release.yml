@@ -14,23 +14,22 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest, ubuntu-22.04]  # WINDOWS auslassen für stabile Alpha
+        os: [macos-latest, ubuntu-22.04]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with:
-          node-version: 20
+        with: { node-version: 20 }
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Linux-Abhängigkeiten
-        if: runner.os == 'Linux'
+        if: matrix.os == 'ubuntu-22.04'
         run: |
-          sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libssl-dev libayatana-appindicator3-dev librsvg2-dev pkg-config libasound2-dev file libxdo-dev
-          ldconfig -p | grep xdo || true
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libssl-dev libayatana-appindicator3-dev librsvg2-dev pkg-config libasound2-dev file libxdo-dev
 
       - name: Cargo-Config (für rust-lld)
-        if: runner.os == 'Linux'
+        if: matrix.os == 'ubuntu-22.04'
         shell: bash
         run: |
           mkdir -p src-tauri/.cargo
@@ -42,78 +41,40 @@ jobs:
       - name: Frontend-Dependencies
         run: npm install
 
-      - name: Tauri Build (macOS & Linux)
+      - name: Tauri Build
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Upload macOS/Linux Artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ runner.os }}-artifacts
-          path: |
-            src-tauri/target/release/bundle/**/*.dmg
-            src-tauri/target/release/bundle/**/*.AppImage
-            src-tauri/target/release/bundle/**/*.deb
-          if-no-files-found: error
-
-  # -- Separater Windows-Job (gelenkt power shell oder cmd --) --
-  build-windows:
-    name: Windows-Build (alpha-ausgelagert)
-    strategy:
-      matrix:
-        os: [windows-latest]
-    runs-on: ${{ matrix.os }}
-    continue-on-error: true   # scheitert zwar weiter bei der Shell, aber blockt das gesamte Release nicht
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Build Windows (node_modules tag automatin loader)
-        shell: pwsh
-        run: |
-          npm i
-          cmd /c "npm run tauri build -- --bundles nsis,msi"
-
-      - name: Preview Artifacts (keine Upload, da .exe häuig UI-Dialoge bricht)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Windows-dbg
-          path: src-tauri/target/
-
   release:
-    name: GitHub Release
-    needs: [build, build-windows]
+    name: GitHub Release (inkl. OSX+Linux Paketen)
+    needs: build
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Downloadplatfomer auf eine Position beruntzigen
+      - name: Download aller Artefakte
         uses: actions/download-artifact@v4
         with:
           path: release/
           pattern: '*-artifacts'
 
-      - name: Release anlegen (gleiches Action ohne Werdegang insp Respect)
+      - name: Release anlegen
         uses: actions/create-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: "${{ github.ref_name }}"
-          release_name: "${{ github.ref_name }} — WhisperCat Alpha"
+          release_name: "${{ github.ref_name }} — WhisperCat (macOS & Linux Alpha)"
           draft: false
-          prerelease: true
+          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') }}
 
-      - name: Upload Installerbundles (ohne Linux, Windows falschemes)
+      - name: Upload Installer (dmg/AppImage/deb)
         shell: bash
         run: |
-          for pattern in dmg AppImage deb exe msi; do
-            for f in release/*/*.$pattern release/*/*.AppImage release/*/*.deb; do
+          for pattern in dmg AppImage deb appimage; do
+            for f in release/*/*."$pattern"; do
               [ -f "$f" ] || continue
-              echo "Hochladen: $f"
+              echo "Upload: $f"
               gh release upload "${{ github.ref_name }}" "$f" --clobber
             done
           done
