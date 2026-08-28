@@ -22,6 +22,12 @@ WhisperCat is a native desktop app for capturing spoken thoughts and turning the
 - Automatic clipboard copy and optional auto-paste
 - Persistent settings, device detection, light professional interface
 
+## Screenshot
+
+<p align="center">
+  <img src="screenshot.png" alt="WhisperCat desktop app" width="85%" />
+</p>
+
 ## Install
 
 Download the matching installer or bundle from the [Releases page](https://github.com/ddxy/whispercat/releases).
