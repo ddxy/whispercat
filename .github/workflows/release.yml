@@ -9,7 +9,7 @@ permissions:
   contents: write
 
 jobs:
-  build-platform:
+  build:
     name: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -21,25 +21,46 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Linux-Abhängigkeiten
+      - name: Linux-Abhängigkeiten (fwk sorted)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libssl-dev libayatana-appindicator3-dev librsvg2-dev pkg-config libasound2-dev file
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libssl-dev libayatana-appindicator3-dev librsvg2-dev pkg-config libasound2-dev file
 
-      - name: Frontend-Dependencies
+      # -------------------------------------------------------------
+      # DAS ist der Link-Fehler-Fix: 'cc' nicht überschreiben,
+      # stattdessen rust-lld direkt für target in .cargo/config.toml
+      - name: Cargo-Config (umgehe Ubuntu Linker-Problem published)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          mkdir -p src-tauri/.cargo
+          cat > src-tauri/.cargo/config.toml << 'EOF'
+          [target.x86_64-unknown-linux-gnu]
+          rustflags = ["-C", "link-arg=-fuse-ld=lld"]
+          EOF
+      # -------------------------------------------------------------
+
+      - name: Frontend-Dependencies (no )
         run: npm install
 
-      # macOS & Linux: tauri-action mit rust-lld
-      - name: Build & Build-Artefakte (macOS/Linux)
+      - name: Build (mit bash auf Windows — verträgt Slash-Paths)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          export PATH="$PATH:$PWD/node_modules/.bin"
+          npm.cmd run tauri build -- --bundles nsis,msi
+
+      - name: Build (macOS & Linux, mit tauri-action sonst Bash deco)
         if: runner.os != 'Windows'
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          args: "-- --use-bundler"
 
-      - name: Upload Linux/macOS-Artefakte
+      - name: Upload macOS & Linux Artifacts
         if: runner.os != 'Windows'
         uses: actions/upload-artifact@v4
         with:
@@ -51,35 +72,29 @@ jobs:
             src-tauri/target/release/bundle/**/*.appimage
           if-no-files-found: error
 
-      # Windows: bash-Workaround
-      - name: Build (Windows / Workaround in bash)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: npm run tauri build -- --use-bundler
-
-      - name: Upload Windows-Installer
+      - name: Upload Windows Artifacts
         if: runner.os == 'Windows'
         uses: actions/upload-artifact@v4
         with:
           name: Windows-artifacts
           path: |
             src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/release/bundle/msi/*.msi
-          if-no-files-found: warn
+            src-tauri/target/release/bundle/nsis/*.msi
+          if-no-files-found: error
 
   release:
-    name: GitHub Release (inkl. etwa leerer Artefakte)
-    needs: build-platform
+    name: GitHub Release erstellen
+    needs: build
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Download gesammelter Artefakte
+      - name: Download aller Artefakte
         uses: actions/download-artifact@v4
         with:
           path: release/
           pattern: '*-artifacts'
 
-      - name: Release anlegen/setzen (erstellt idempotent das Draft-Release)
+      - name: Release anlegen (idempotent)
         uses: actions/create-release@v1
         id: create_release
         env:
@@ -88,42 +103,16 @@ jobs:
           tag_name: "${{ github.ref_name }}"
           release_name: "${{ github.ref_name }} — WhisperCat"
           draft: false
-          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') }}
+          prerelease: true
 
-      - name: Upload Linux-Pakete
-        if: runner.os == 'Linux'
+      - name: Upload alle Installer/Bundles
         shell: bash
         run: |
-          for f in release/*/WhisperCat*.AppImage release/*/*.deb; do
-            [ -f "$f" ] || continue
-            echo "Upload Linux: $f"
-            gh release upload "$TAG" "$f" --clobber
-          done
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
-
-      - name: Upload macOS-DMG
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          for f in release/*/*.dmg; do
-            [ -f "$f" ] || continue
-            echo "Upload macOS: $f"
-            gh release upload "$TAG" "$f" --clobber
-          done
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ github.ref_name }}
-
-      - name: Upload Windows-Installer (wenn erfolgreich)
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          for f in release/*/*.exe release/*/*.msi; do
-            [ -f "$f" ] || continue
-            echo "Upload Windows: $f"
-            gh release upload "$TAG" "$f" --clobber
+          for f in release/*/*.dmg release/*/*.AppImage release/*/*.deb release/*/*.exe release/*/*.msi; do
+            if [ -f "$f" ]; then
+              echo "Uploading: $f"
+              gh release upload "$TAG" "$f" --clobber
+            fi
           done
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
