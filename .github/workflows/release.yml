@@ -28,7 +28,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libssl-dev libayatana-appindicator3-dev librsvg2-dev pkg-config libasound2-dev file libxdo-dev
 
-      - name: Cargo-Config (rust-lld)
+      - name: Cargo-Config (rust-lld für xdo)
         if: matrix.os == 'ubuntu-22.04'
         shell: bash
         run: |
@@ -55,7 +55,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    name: Release & Upload (automatisch für macOS/Linux)
+    name: Release & Upload (macOS/Linux automatisch)
     needs: build
     if: always()
     runs-on: ubuntu-latest
@@ -66,50 +66,15 @@ jobs:
           path: release/
           pattern: '*-artifacts'
 
-      - name: Auflistung nach dem GSummary tag्टग
-        shell: bash
-        run: |
-          ls -la release/
-
-      # Upload *Linux* Artifacts direkt per upload-release-action*)
-      - name: Upload Linux-Pakete
-        if: runner.os == 'Linux'
+      # Wir lassen das Release-Aufsetzen + alle Uploads kompatromise los von gha-Cliss
+      - name: Upload Installer zu GitHub Release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
-          file_glob: true
-          # Pattern sowohl auf der gleichen als auch 2x tiefer
-          file: |
-            release/macos-latest/WhisperCat_0.1.0_amd64.AppImage
-            release/ubuntu-22.04/whispercat_0.1.0_amd64.deb
-
-      # Upload *macOS* DMG direkt
-      - name: Upload macOS-DMG
-        if: runner.os == 'macOS'
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          tag: ${{ github.ref_name }}
           file_glob: true
           file: |
-            release/macos-latest/WhisperCat_0.1.0_aarch64.dmg
-
-      - entry: Abschluss-Release anlegen falls nicht vorhanden
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: "${{ github.ref_name }}"
-          release_name: "${{ github.ref_name }} — WhisperCat Mac/Linux Alpha"
-          draft: false
-          prerelease: ${{ contains(github.ref_name, 'alpha') || contains(github.ref_name, 'beta') }}
-
-      - name: Upload hinzufügen (Release-Assets
-        shell: bash
-        run: |
-          for f in release/*/**/*.dmg release/*/**/*.AppImage release/*/**/*.deb release/*/**/*.appimage; do
-            [ -f "$f" ] || continue
-            echo "Hochladen: $f"
-            gh release upload "${{ github.ref_name }}" "$f" --clobber
-          done
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+            release/**/*.dmg
+            release/**/*.AppImage
+            release/**/*.deb
+            release/**/*.appimage
