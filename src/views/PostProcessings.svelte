@@ -16,7 +16,7 @@
   });
 
   function newPP() {
-    current = { uuid: '', title: 'New post-processing', description: '', steps: [] };
+    current = { uuid: '', title: 'New workflow', description: '', steps: [] };
   }
 
   function select(pp: PostProcessing) {
@@ -68,7 +68,7 @@
 
 <div class="columns">
   <aside>
-    <button class="primary new" on:click={newPP}>＋ New post-processing</button>
+    <button class="primary new" on:click={newPP}>＋ New workflow</button>
     <ul>
       {#each pps as pp}
         <li>
@@ -96,7 +96,7 @@
               <option value="replace">🔁 Text replacement</option>
             </select>
             <span class="spacer"></span>
-            <button class="danger" on:click={() => removeStep(i)} title="Remove step">🗑</button>
+            <button class="danger" on:click={() => removeStep(i)} title="Remove step" aria-label="Remove step">🗑</button>
           </div>
 
           {#if step.type === 'replace'}
@@ -132,9 +132,16 @@
 
 <style>
   .columns { display: flex; gap: 18px; max-width: 900px; margin: 0 auto; align-items: flex-start; }
-  aside { width: 240px; flex-shrink: 0; }
-  aside ul { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-direction: column; gap: 6px; }
-  aside button { width: 100%; text-align: left; }
-  aside button.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  aside { width: 240px; flex-shrink: 0; padding: 10px; background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm); }
+  aside ul { list-style: none; padding: 0; margin: 12px 0 0; display: flex; flex-direction: column; gap: 3px; }
+  aside button { width: 100%; text-align: left; border: 0; background: transparent; box-shadow: none; }
+  aside button:hover:not(.active) { background: var(--bg-subtle); }
+  aside button.active { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+  aside button.primary { background: var(--accent); color: #fff; }
+  aside button:focus:not(:focus-visible) { outline: none; }
   .editor { flex: 1; }
+  @media (max-width: 700px) {
+    .columns { flex-direction: column; }
+    aside { width: 100%; }
+  }
 </style>

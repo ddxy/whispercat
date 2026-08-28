@@ -2,9 +2,9 @@
   import { toasts } from './lib/toast';
 </script>
 
-<div class="toasts">
+<div class="toasts" aria-live="polite" aria-atomic="true">
   {#each $toasts as t (t.id)}
-    <div class="toast {t.type}">{t.msg}</div>
+    <div class="toast {t.type}" role={t.type === 'error' ? 'alert' : 'status'}>{t.msg}</div>
   {/each}
 </div>
 
@@ -16,7 +16,7 @@
   }
   .toast {
     padding: 10px 16px; border-radius: 10px; color: #fff; font-size: 13px;
-    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4); animation: slidein 0.2s ease-out;
+    box-shadow: 0 4px 18px rgba(20, 24, 40, 0.16); animation: slidein 0.2s ease-out;
   }
   .toast.success { background: var(--success); }
   .toast.info { background: var(--info); }

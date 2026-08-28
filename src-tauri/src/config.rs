@@ -18,6 +18,7 @@ pub struct Config {
     pub system_audio_source: Option<String>,
     pub mic_gain: f32,
     pub system_audio_gain: f32,
+    pub selected_postprocessing: Option<String>,
     pub hotkey: String,
     pub auto_paste: bool,
 }
@@ -37,6 +38,7 @@ impl Default for Config {
             system_audio_source: None,
             mic_gain: 1.0,
             system_audio_gain: 1.0,
+            selected_postprocessing: None,
             hotkey: "Ctrl+Shift+R".to_string(),
             auto_paste: true,
         }

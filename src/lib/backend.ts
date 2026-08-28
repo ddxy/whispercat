@@ -23,6 +23,7 @@ let mockConfig: Config = {
   system_audio_source: null,
   mic_gain: 1,
   system_audio_gain: 1,
+  selected_postprocessing: null,
   hotkey: 'Ctrl+Shift+R',
   auto_paste: true,
 };
@@ -146,4 +147,10 @@ export async function onHotkey(cb: () => void): Promise<() => void> {
   if (!isTauri) return () => {};
   const { listen } = await import('@tauri-apps/api/event');
   return listen('hotkey-toggle', () => cb());
+}
+
+export async function onSelectedPostprocessingChanged(cb: (uuid: string | null) => void): Promise<() => void> {
+  if (!isTauri) return () => {};
+  const { listen } = await import('@tauri-apps/api/event');
+  return listen<string | null>('selected-postprocessing-changed', (event) => cb(event.payload));
 }

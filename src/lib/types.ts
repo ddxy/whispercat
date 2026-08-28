@@ -13,6 +13,7 @@ export interface Config {
   system_audio_source: string | null;
   mic_gain: number;
   system_audio_gain: number;
+  selected_postprocessing: string | null;
   hotkey: string;
   auto_paste: boolean;
 }

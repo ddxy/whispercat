@@ -16,11 +16,20 @@ pub struct AppState {
 }
 
 impl AppState {
-    fn config(&self) -> Config {
+    pub(crate) fn config(&self) -> Config {
         match self.cfg.lock() {
             Ok(g) => g.clone(),
             Err(poisoned) => poisoned.into_inner().clone(),
         }
+    }
+
+    pub(crate) fn set_selected_postprocessing(
+        &self,
+        selected: Option<String>,
+    ) -> Result<(), String> {
+        let mut cfg = self.cfg.lock().map_err(|error| error.to_string())?;
+        cfg.selected_postprocessing = selected;
+        config::save(&cfg).map_err(|error| error.to_string())
     }
 }
 
@@ -111,13 +120,28 @@ fn list_postprocessings() -> Vec<PostProcessing> {
 }
 
 #[tauri::command]
-fn upsert_postprocessing(pp: PostProcessing) -> Result<PostProcessing, String> {
-    postprocess::upsert(pp).map_err(|e| e.to_string())
+fn upsert_postprocessing(
+    app: tauri::AppHandle,
+    pp: PostProcessing,
+) -> Result<PostProcessing, String> {
+    let saved = postprocess::upsert(pp).map_err(|error| error.to_string())?;
+    tray::refresh_postprocessing_menu(&app).map_err(|error| error.to_string())?;
+    Ok(saved)
 }
 
 #[tauri::command]
-fn delete_postprocessing(uuid: String) -> Result<(), String> {
-    postprocess::delete(&uuid).map_err(|e| e.to_string())
+fn delete_postprocessing(
+    app: tauri::AppHandle,
+    state: State<AppState>,
+    uuid: String,
+) -> Result<(), String> {
+    postprocess::delete(&uuid).map_err(|error| error.to_string())?;
+    if state.config().selected_postprocessing.as_deref() == Some(uuid.as_str()) {
+        state.set_selected_postprocessing(None)?;
+        app.emit("selected-postprocessing-changed", Option::<String>::None)
+            .map_err(|error| error.to_string())?;
+    }
+    tray::refresh_postprocessing_menu(&app).map_err(|error| error.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -156,8 +180,8 @@ pub fn run() {
                 tauri::WebviewUrl::App("index.html".into()),
             )
             .title("WhisperCat")
-            .inner_size(920.0, 680.0)
-            .min_inner_size(700.0, 520.0)
+            .inner_size(1180.0, 820.0)
+            .min_inner_size(900.0, 640.0)
             .build()?;
 
             // Schließen -> in den Tray minimieren statt beenden
