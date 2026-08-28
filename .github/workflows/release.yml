@@ -1,10 +1,8 @@
 name: Release
-
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
-
 permissions:
   contents: write
 
@@ -26,9 +24,11 @@ jobs:
         if: matrix.os == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libssl-dev libayatana-appindicator3-dev librsvg2-dev pkg-config libasound2-dev file libxdo-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential libssl-dev \
+            libayatana-appindicator3-dev librsvg2-dev pkg-config libasound2-dev \
+            file libxdo-dev lld
 
-      - name: Cargo-Config (rust-lld für xdo)
+      - name: Cargo-Config (lld für xdo)
         if: matrix.os == 'ubuntu-22.04'
         shell: bash
         run: |
@@ -39,56 +39,48 @@ jobs:
           EOF
 
       - name: Frontend-Dependencies
-        run: npm install
+        run: npm ci || npm install
 
       - name: Build
         run: npm run tauri build
 
-      - name: Upload Artifacts
-        uses: actions/upload-artifact@v4
+      # Alles flach in einen Ordner kopieren -> keine LCA-Überraschungen
+      - name: Artefakte einsammeln
+        shell: bash
+        run: |
+          mkdir -p dist
+          find src-tauri/target -path '*/release/bundle/*' \
+            \( -name '*.dmg' -o -name '*.AppImage' -o -name '*.deb' -o -name '*.rpm' \) \
+            -exec cp -v {} dist/ \;
+          ls -la dist
+
+      - uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.os }}-artifacts
-          path: |
-            src-tauri/target/release/bundle/**/*.dmg
-            src-tauri/target/release/bundle/**/*.AppImage
-            src-tauri/target/release/bundle/*.deb/*.deb
+          path: dist/*
           if-no-files-found: error
 
   release:
-    name: Release & Upload (macOS/Linux automatisch)
+    name: Release & Upload
     needs: build
-    if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Download aller Plattfrorm-Artefakte
+      - name: Artefakte herunterladen
         uses: actions/download-artifact@v4
         with:
-          path: release/
+          path: release
           pattern: '*-artifacts'
+          merge-multiple: true      # <- alles flach nach release/
 
-      - name: Debug-Ausgabe aller verfügbaren Download-Ebenen
-        shell: bash
-        run: |
-          echo "=== .- Struktur in release/ ==="
-          find release -type f | sed 's|^release/||' | sort
-          echo "=== *.dateien auf macos-latest ==="
-          ls -la release/macos-latest/ | head -n 20 || true
-          echo "=== *.dateien auf ubuntu-latest ==="
-          ls -la release/ubuntu-22.04/ | head -n 20 || true
+      - name: Debug
+        run: find release -type f -printf '%s\t%p\n' | sort
 
-      # Informell: Erweitere globale Struktur sodass wir die Dateien finden wenn sie in Unterordner liegen
-      - name: Upload macOS-DMG
+      - name: Upload zum Release
         uses: svenstaro/upload-release-action@v2
         with:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           tag: ${{ github.ref_name }}
-          file: release/macos-latest/*.dmg
+          file: release/*
+          file_glob: true           # <- entscheidend
           overwrite: true
-
-      - name: Upload Linux-Pakete
-        uses: svenstaro/upload-release-action@v2
-        with:
-          repo_token: ${{ secrets.GITHUB_TOKEN }}
-          tag: ${{ github.ref_name }}
-          file: release/ubuntu-22.04/*.AppImage release/ubuntu-22.04/*.deb release/ubuntu-22.04/*.appimage
-          overwrite: true
+          prerelease: ${{ contains(github.ref_name, '-alpha') || contains(github.ref_name, '-beta') || contains(github.ref_name, '-rc') }}
