@@ -6,9 +6,8 @@ use std::path::{Path, PathBuf};
 const MAX_UPLOAD_BYTES: u64 = 25 * 1024 * 1024;
 const CHUNK_BYTES: u64 = 24 * 1024 * 1024;
 
-/// Sends a WAV file to the configured Whisper backend and returns the text
-/// from the JSON field "text". Files larger than 25 MiB are split into valid
-/// WAV chunks and transcribed sequentially.
+/// Sends an audio file to the configured Whisper backend and returns text from
+/// the JSON field "text". Oversized WAV files are split before upload.
 pub async fn transcribe(cfg: &Config, audio_path: &str) -> Result<String> {
     let path = Path::new(audio_path);
     let size = tokio::fs::metadata(path)
@@ -24,29 +23,31 @@ pub async fn transcribe(cfg: &Config, audio_path: &str) -> Result<String> {
         "Splitting {} before transcription because it exceeds 25 MiB",
         audio_path
     );
-    let chunks = split_wav(path)?;
-    let mut transcripts = Vec::with_capacity(chunks.len());
-
-    let result = async {
-        for (index, chunk) in chunks.iter().enumerate() {
-            let transcript = transcribe_file(cfg, chunk).await.with_context(|| {
-                format!(
-                    "Failed to transcribe chunk {} of {}",
-                    index + 1,
-                    chunks.len()
-                )
-            })?;
-            transcripts.push(transcript);
-        }
-        Ok::<_, anyhow::Error>(())
-    }
-    .await;
+    let chunk_path = path.to_path_buf();
+    let chunks = tokio::task::spawn_blocking(move || split_wav(&chunk_path))
+        .await
+        .context("WAV chunking task failed")??;
+    let result = transcribe_files(cfg, &chunks).await;
 
     for chunk in &chunks {
         let _ = std::fs::remove_file(chunk);
     }
-    result?;
+    result
+}
 
+/// Transcribes pre-segmented files sequentially. Callers own their cleanup.
+pub async fn transcribe_files(cfg: &Config, files: &[PathBuf]) -> Result<String> {
+    let mut transcripts = Vec::with_capacity(files.len());
+    for (index, file) in files.iter().enumerate() {
+        let transcript = transcribe_file(cfg, file).await.with_context(|| {
+            format!(
+                "Failed to transcribe chunk {} of {}",
+                index + 1,
+                files.len()
+            )
+        })?;
+        transcripts.push(transcript);
+    }
     Ok(transcripts
         .into_iter()
         .filter(|text| !text.is_empty())
@@ -166,11 +167,19 @@ async fn transcribe_file(cfg: &Config, audio_path: &Path) -> Result<String> {
         .file_name()
         .map(|name| name.to_string_lossy().to_string())
         .unwrap_or_else(|| "recording.wav".to_string());
+    let mime = if audio_path
+        .extension()
+        .is_some_and(|extension| extension == "mp3")
+    {
+        "audio/mpeg"
+    } else {
+        "audio/wav"
+    };
     form = form.part(
         "file",
         multipart::Part::bytes(bytes)
             .file_name(filename)
-            .mime_str("audio/wav")?,
+            .mime_str(mime)?,
     );
 
     let client = reqwest::Client::new();

@@ -6,11 +6,13 @@
   import RunResult from '../components/RunResult.svelte';
 
   let recording = false;
+  let recordingSystemAudio = false;
   let stopping = false;
   let pps: PostProcessing[] = [];
   let selectedUuid = '';
   let config: Config | null = null;
   let currentRun: Run | null = null;
+  let pendingTranscriptRunId = '';
   let manualText = '';
   let optionsMenu: HTMLDetailsElement;
   let workflowMenu: HTMLDetailsElement;
@@ -44,6 +46,10 @@
     if (!currentRun) return;
     const runs = await api.listRuns();
     currentRun = runs.find((run) => run.id === currentRun?.id) ?? currentRun;
+    if (currentRun.id === pendingTranscriptRunId && currentRun.transcript) {
+      manualText = currentRun.transcript;
+      pendingTranscriptRunId = '';
+    }
   }
 
   async function saveConfig() {
@@ -88,7 +94,7 @@
     if (stopping) return;
     if (!recording) {
       try {
-        await api.startRecording();
+        recordingSystemAudio = await api.startRecording();
         recording = true;
       } catch (error) {
         toast('error', String(error));
@@ -97,12 +103,29 @@
     }
 
     recording = false;
+    recordingSystemAudio = false;
     stopping = true;
     try {
-      const path = await api.stopRecording();
+      const recording = await api.stopRecording();
       const workflow = pps.find((pp) => pp.uuid === selectedUuid) ?? null;
-      currentRun = await api.queueRun(path, workflow);
-      toast('info', 'Recording queued. Processing continues in History.');
+      currentRun = await api.queueRun(recording, workflow);
+      pendingTranscriptRunId = currentRun.id;
+      toast('info', 'Recording queued. Finalizing and processing continue in History.');
+    } catch (error) {
+      toast('error', String(error));
+    } finally {
+      stopping = false;
+    }
+  }
+
+  async function discardRecording() {
+    if (!recording || stopping) return;
+    recording = false;
+    recordingSystemAudio = false;
+    stopping = true;
+    try {
+      await api.discardRecording();
+      toast('info', 'Recording discarded.');
     } catch (error) {
       toast('error', String(error));
     } finally {
@@ -112,9 +135,10 @@
 
   async function runWorkflow() {
     const workflow = pps.find((pp) => pp.uuid === selectedUuid);
-    if (!workflow) return;
+    if (!workflow || !manualText.trim()) return;
     try {
       currentRun = await api.queueTextRun(manualText, workflow);
+      pendingTranscriptRunId = '';
       toast('info', 'Workflow queued. Processing continues in History.');
     } catch (error) {
       toast('error', String(error));
@@ -127,15 +151,27 @@
 <div class="wrap">
   <section class="recording-card">
     <header>
-      <div class="record-action">
-        <button class="record-control" class:recording class:stopping on:click={toggle} disabled={stopping} aria-label={stopping ? 'Stopping recording' : recording ? 'Stop recording' : 'Start recording'}>
-          {#if stopping}⌛{:else if recording}⏹{:else}<img src="/whispercat.svg" alt="" />{/if}
-        </button>
-        <span>{recording ? 'Stop' : 'Record'}</span>
-      </div>
-      <div class="record-status" aria-live="polite">
+        <div class="record-action">
+          <button class="record-control" class:recording class:stopping on:click={toggle} disabled={stopping} aria-label={stopping ? 'Stopping recording' : recording ? 'Stop recording' : 'Start recording'}>
+            {#if stopping}⌛{:else if recording}⏹{:else}<img src="/whispercat.svg" alt="" />{/if}
+          </button>
+          <span>{recording ? 'Stop' : 'Record'}</span>
+        </div>
+        {#if recording}
+          <button class="discard-recording" on:click={discardRecording} disabled={stopping}>Discard</button>
+        {/if}
+        <div class="record-status" aria-live="polite">
         <strong>{#if stopping}Saving recording …{:else if recording}WhisperCat is listening …{:else}WhisperCat is ready to listen.{/if}</strong>
-        <span>{recording ? 'Stop when you are finished. Previous runs keep processing.' : 'Capture it. Clean it. Keep moving.'}</span>
+        <span>
+          {#if recording && recordingSystemAudio}
+            <span class="system-audio-indicator" title="System audio is being recorded" aria-label="System audio is being recorded">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 10v4h4l5 4V6l-5 4H4Zm12.5 2a4.5 4.5 0 0 0-2.2-3.86v1.88a2.75 2.75 0 0 1 0 3.96v1.88A4.5 4.5 0 0 0 16.5 12Zm0-8.3v1.84a7.1 7.1 0 0 1 0 12.92v1.84a8.85 8.85 0 0 0 0-16.6Z" /></svg>
+              System audio
+            </span>
+          {:else}
+            {recording ? 'Stop when you are finished. Previous runs keep processing.' : 'Capture it. Clean it. Keep moving.'}
+          {/if}
+        </span>
       </div>
       <div class="header-spacer"></div>
       <details class="workflow-picker" bind:this={workflowMenu}>
@@ -159,19 +195,24 @@
     </header>
   </section>
 
-  <section class:has-content={manualText.trim().length > 0} class="manual-input">
-    <label for="workflow-input">Transcript / input</label>
-    <textarea id="workflow-input" bind:value={manualText} rows="6" placeholder="Type or paste text to process …"></textarea>
-    <div class="manual-actions">
-      <button on:click={runWorkflow} disabled={!selectedUuid}>Run workflow</button>
-    </div>
-  </section>
-
   {#if currentRun}
     <div class="latest-run">
-      <p class="section-label">Latest recording</p>
-      <RunResult run={currentRun} />
+      <RunResult
+        run={currentRun}
+        input={manualText}
+        workflowEnabled={Boolean(selectedUuid && manualText.trim())}
+        onInputChange={(text) => (manualText = text)}
+        onRunWorkflow={runWorkflow}
+      />
     </div>
+  {:else}
+    <section class="manual-input">
+      <label for="workflow-input">Transcript / input</label>
+      <textarea id="workflow-input" bind:value={manualText} rows="6" placeholder="Type or paste text to process …"></textarea>
+      <div class="manual-actions">
+        <button on:click={runWorkflow} disabled={!selectedUuid || !manualText.trim()}>Run workflow</button>
+      </div>
+    </section>
   {/if}
 </div>
 
@@ -184,11 +225,15 @@
   .record-control img { width: 32px; height: 32px; object-fit: contain; }
   .record-control:hover:not(:disabled) { transform: scale(1.05); border-color: var(--accent); }
   .record-control.recording { border-color: var(--danger); background: var(--danger-soft); animation: pulse 1.4s infinite; }
-  .record-control.stopping { border-color: var(--info); }
+   .record-control.stopping { border-color: var(--info); }
+   .discard-recording { color: var(--danger); border-color: var(--danger-soft); padding: 6px 10px; font-size: 12px; }
+   .discard-recording:hover:not(:disabled) { background: var(--danger); border-color: var(--danger); color: #fff; }
   @keyframes pulse { 0%, 100% { box-shadow: 0 0 0 0 rgba(211, 61, 61, 0.34); } 50% { box-shadow: 0 0 0 10px rgba(211, 61, 61, 0); } }
-  .record-status { display: grid; gap: 3px; min-width: 0; }
-  .record-status strong { color: var(--text); font-size: 14px; }
-  .record-status span { color: var(--text-dim); font-size: 12px; }
+   .record-status { display: grid; gap: 3px; min-width: 0; }
+   .record-status strong { color: var(--text); font-size: 14px; }
+   .record-status span { color: var(--text-dim); font-size: 12px; }
+   .record-status .system-audio-indicator { display: inline-flex; align-items: center; gap: 5px; color: var(--accent); font-weight: 600; }
+   .system-audio-indicator svg { width: 14px; height: 14px; fill: currentColor; }
   .header-spacer { flex: 1; }
   .workflow-picker, .quick-options { position: relative; }
   .workflow-picker summary, .quick-options summary { list-style: none; padding: 8px 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg-card); box-shadow: var(--shadow-sm); color: var(--text-dim); font-size: 13px; cursor: pointer; }
@@ -201,13 +246,11 @@
   .quick-options-panel label { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--text); font-size: 13px; }
   .quick-options-panel input { width: auto; margin: 0; accent-color: var(--accent); }
   .quick-options-panel button { justify-self: start; padding: 6px 10px; font-size: 12px; }
-  .latest-run { margin-top: 26px; }
+  .latest-run { margin-top: 18px; }
   .manual-input { display: grid; gap: 8px; margin-top: 18px; padding: 16px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-card); box-shadow: var(--shadow-sm); }
   .manual-input label { color: var(--text-dim); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
   .manual-input textarea { min-height: 118px; margin: 0; resize: vertical; }
-  .manual-actions { display: flex; justify-content: flex-end; max-height: 0; overflow: hidden; opacity: 0; transition: max-height 140ms ease, opacity 140ms ease; }
-  .manual-input:focus-within .manual-actions, .manual-input.has-content .manual-actions { max-height: 40px; opacity: 1; }
+  .manual-actions { display: flex; justify-content: flex-end; }
   .manual-actions button { padding: 7px 11px; font-size: 12px; }
-  .section-label { margin: 0 0 8px; color: var(--text-dim); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
   @media (max-width: 700px) { header { align-items: flex-start; flex-wrap: wrap; } .header-spacer { display: none; } .workflow-picker { margin-left: auto; } .quick-options { align-self: center; } }
 </style>

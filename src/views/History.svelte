@@ -52,6 +52,15 @@
     }
   }
 
+  async function openRecordingFolder() {
+    if (!selectedRun?.recording_dir) return;
+    try {
+      await api.openRecordingFolder(selectedRun.id);
+    } catch (error) {
+      toast('error', String(error));
+    }
+  }
+
   function formatTime(timestamp: number) {
     return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(timestamp);
   }
@@ -82,7 +91,10 @@
         {#if selectedRun}
           <div class="detail-header">
             <p>{formatTime(selectedRun.created_at)}</p>
-            <button class="primary" onclick={recordAgain}>Record again</button>
+            <div class="actions">
+              {#if selectedRun.recording_dir}<button onclick={openRecordingFolder}>Open folder</button>{/if}
+              <button class="primary" onclick={recordAgain}>Record again</button>
+            </div>
           </div>
           <RunResult run={selectedRun} />
         {/if}
@@ -110,6 +122,7 @@
   em.failed { color: var(--danger); background: var(--danger-soft); }
   .detail-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
   .detail-header p { margin: 0; color: var(--text-dim); font-size: 12px; }
+  .actions { display: flex; gap: 8px; }
   .empty { padding: 42px 24px; border: 1px dashed var(--border-strong); border-radius: 12px; color: var(--text-dim); text-align: center; }
   @media (max-width: 800px) { .content { grid-template-columns: 1fr; } aside { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); } }
   @media (max-width: 500px) { .page-header { align-items: flex-start; flex-direction: column; } }

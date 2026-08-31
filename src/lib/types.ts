@@ -60,6 +60,15 @@ export interface PostProcessing {
 }
 
 export type RunStatus = 'processing' | 'done' | 'failed';
+export type RunStepStatus = 'pending' | 'processing' | 'done' | 'failed';
+
+export interface RunStep {
+  path: number[];
+  label: string;
+  status: RunStepStatus;
+  output: string;
+  error?: string;
+}
 
 export interface Run {
   id: string;
@@ -67,7 +76,9 @@ export interface Run {
   status: RunStatus;
   workflow_uuid: string | null;
   workflow_title: string;
+  recording_dir?: string;
   transcript: string;
   result: string;
   error?: string;
+  steps: RunStep[];
 }

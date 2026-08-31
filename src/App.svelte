@@ -38,13 +38,14 @@
   </aside>
 
   <main>
-    {#if tab === 'record'}
+    <div hidden={tab !== 'record'}>
       <Record />
-    {:else if tab === 'history'}
+    </div>
+    {#if tab === 'history'}
       <History onRecordAgain={() => (tab = 'record')} />
     {:else if tab === 'pp'}
       <PostProcessings />
-    {:else}
+    {:else if tab === 'settings'}
       <Settings />
     {/if}
   </main>
@@ -53,7 +54,9 @@
 <Toast />
 
 <style>
-  .shell { display: grid; grid-template-columns: 224px minmax(0, 1fr); height: 100%; }
+	:global(html), :global(body), :global(#app) { height: 100%; }
+	:global(#app) { min-height: 100dvh; }
+	.shell { display: grid; grid-template-columns: 224px minmax(0, 1fr); min-height: 100dvh; }
   .sidebar {
     grid-column: 1; grid-row: 1; display: flex; flex-direction: column;
     padding: 22px 14px; background: var(--bg-card); border-right: 1px solid var(--border);

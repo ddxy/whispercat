@@ -95,11 +95,55 @@ pub enum Repeat {
     Infinite(String),
 }
 
+pub enum StepProgress {
+    Started,
+    Completed(String),
+}
+
+pub type ProgressReporter = dyn Fn(&[usize], StepProgress) + Send + Sync;
+
+pub fn workflow_steps(steps: &[Step]) -> Vec<crate::runs::RunStep> {
+    let mut result = Vec::new();
+    collect_workflow_steps(steps, &mut Vec::new(), &mut result);
+    result
+}
+
+fn collect_workflow_steps(
+    steps: &[Step],
+    parent_path: &mut Vec<usize>,
+    result: &mut Vec<crate::runs::RunStep>,
+) {
+    for (index, step) in steps.iter().enumerate() {
+        parent_path.push(index);
+        match step {
+            Step::Group { steps, .. } => collect_workflow_steps(steps, parent_path, result),
+            _ => result.push(crate::runs::RunStep {
+                path: parent_path.clone(),
+                label: step_label(step).to_string(),
+                status: crate::runs::RunStepStatus::Pending,
+                output: String::new(),
+                error: None,
+            }),
+        }
+        parent_path.pop();
+    }
+}
+
+fn step_label(step: &Step) -> &'static str {
+    match step {
+        Step::Prompt { .. } => "AI prompt",
+        Step::Replace { .. } => "Replace text",
+        Step::N8n { .. } => "n8n webhook",
+        Step::ScreenshotWebhook { .. } | Step::Screenshot { .. } => "Screenshot",
+        Step::Group { .. } => "Group",
+    }
+}
+
 // ---------- Ablauf ----------
 
 pub async fn apply(cfg: &Config, pp: &PostProcessing, input: &str) -> Result<String> {
     let screenshot_session = prepare_screenshot_session(pp).await?;
-    let result = apply_with_screenshot_session(cfg, pp, input, screenshot_session.as_ref()).await;
+    let result = apply_with_screenshot_session(cfg, pp, input, screenshot_session.as_ref(), None).await;
     if let Some(session) = screenshot_session {
         session.close().await;
     }
@@ -119,11 +163,12 @@ pub async fn apply_with_screenshot_session(
     pp: &PostProcessing,
     input: &str,
     screenshot_session: Option<&ScreenshotSession>,
+    progress: Option<&ProgressReporter>,
 ) -> Result<String> {
     let mut text = input.to_string();
     let mut executions = 0;
-    for step in &pp.steps {
-        text = apply_step(cfg, step, text, &mut executions, screenshot_session).await?;
+    for (index, step) in pp.steps.iter().enumerate() {
+        text = apply_step(cfg, step, text, &mut executions, screenshot_session, &[index], progress).await?;
     }
     Ok(text)
 }
@@ -142,6 +187,8 @@ fn apply_step<'a>(
     input: String,
     executions: &'a mut u32,
     screenshot_session: Option<&'a ScreenshotSession>,
+    path: &'a [usize],
+    progress: Option<&'a ProgressReporter>,
 ) -> Pin<Box<dyn Future<Output = Result<String>> + Send + 'a>> {
     Box::pin(async move {
         let repeat = repeat_count(step)?;
@@ -149,20 +196,26 @@ fn apply_step<'a>(
         let mut text = input;
         let mut pass = 0;
 
+        if !matches!(step, Step::Group { .. }) {
+            if let Some(progress) = progress {
+                progress(path, StepProgress::Started);
+            }
+        }
+
         loop {
             if let Some(count) = repeat {
                 if pass >= count {
-                    return Ok(text);
+                    break;
                 }
             }
 
             let previous = text.clone();
-            text = apply_step_once(cfg, step, text, executions, screenshot_session).await?;
+            text = apply_step_once(cfg, step, text, executions, screenshot_session, path, progress).await?;
             pass += 1;
 
             // Infinite repeats converge when a complete pass leaves text unchanged.
             if repeat.is_none() && text == previous {
-                return Ok(text);
+                break;
             }
 
             let has_next_pass = repeat.is_none_or(|count| pass < count);
@@ -172,6 +225,13 @@ fn apply_step<'a>(
                 }
             }
         }
+
+        if !matches!(step, Step::Group { .. }) {
+            if let Some(progress) = progress {
+                progress(path, StepProgress::Completed(text.clone()));
+            }
+        }
+        Ok(text)
     })
 }
 
@@ -181,6 +241,8 @@ async fn apply_step_once(
     text: String,
     executions: &mut u32,
     screenshot_session: Option<&ScreenshotSession>,
+    path: &[usize],
+    progress: Option<&ProgressReporter>,
 ) -> Result<String> {
     match step {
         Step::Group { steps, .. } => {
@@ -188,8 +250,10 @@ async fn apply_step_once(
                 anyhow::bail!("Workflow groups must contain at least one step.");
             }
             let mut text = text;
-            for step in steps {
-                text = apply_step(cfg, step, text, executions, screenshot_session).await?;
+            for (index, step) in steps.iter().enumerate() {
+                let mut child_path = path.to_vec();
+                child_path.push(index);
+                text = apply_step(cfg, step, text, executions, screenshot_session, &child_path, progress).await?;
             }
             Ok(text)
         }

@@ -8,6 +8,8 @@
   let devices: string[] = [];
   let systemAudioSources: string[] = [];
   let saveTimer: ReturnType<typeof setTimeout> | null = null;
+  let hotkeyInput: HTMLInputElement;
+  let recordingHotkey = false;
 
   onMount(async () => {
     try {
@@ -61,6 +63,43 @@
     toast('success', `Selected system-audio source: ${source}`);
   }
 
+  function startHotkeyRecording() {
+    recordingHotkey = true;
+    hotkeyInput.focus();
+  }
+
+  function captureHotkey(event: KeyboardEvent) {
+    if (!recordingHotkey || !cfg) return;
+    event.preventDefault();
+
+    const key = hotkeyKey(event.code);
+    if (!key) return;
+    const modifiers = [
+      event.ctrlKey && 'Ctrl',
+      event.shiftKey && 'Shift',
+      event.altKey && 'Alt',
+      event.metaKey && 'Super',
+    ].filter(Boolean);
+    if (!modifiers.length && !key.startsWith('F')) {
+      toast('error', 'Include a modifier key or use an F key.');
+      return;
+    }
+    cfg.hotkey = [...modifiers, key].join('+');
+    recordingHotkey = false;
+  }
+
+  function hotkeyKey(code: string): string | null {
+    if (/^Key[A-Z]$/.test(code)) return code.slice(3);
+    if (/^Digit[0-9]$/.test(code)) return code.slice(5);
+    if (/^F(?:[1-9]|1[0-2])$/.test(code)) return code;
+    return {
+      Space: 'Space', Enter: 'Enter', Tab: 'Tab', Escape: 'Escape', Backspace: 'Backspace',
+      Delete: 'Delete', Insert: 'Insert', Home: 'Home', End: 'End', PageUp: 'PageUp',
+      PageDown: 'PageDown', ArrowUp: 'Up', ArrowDown: 'Down', ArrowLeft: 'Left', ArrowRight: 'Right',
+      Minus: 'Minus', Equal: 'Equal', Comma: 'Comma', Period: 'Period', Slash: 'Slash', Backslash: 'Backslash',
+    }[code] ?? null;
+  }
+
 </script>
 
 {#if cfg}
@@ -68,10 +107,23 @@
     <div class="card">
       <h2>General</h2>
       <label>
-        Hotkey to start/stop (e.g. “Ctrl+Shift+R”, “Alt+F9”)
-        <input bind:value={cfg.hotkey} placeholder="Ctrl+Shift+R" />
+        Hotkey to start/stop
+        <div class="hotkey-control">
+          <input
+            bind:this={hotkeyInput}
+            value={recordingHotkey ? 'Press shortcut…' : cfg.hotkey}
+            readonly
+            aria-describedby="hotkey-hint"
+            aria-label="Hotkey to start or stop recording"
+            on:keydown={captureHotkey}
+            on:blur={() => (recordingHotkey = false)}
+          />
+          <button type="button" class:recording={recordingHotkey} on:click={startHotkeyRecording}>
+            {recordingHotkey ? 'Listening…' : 'Record shortcut'}
+          </button>
+        </div>
       </label>
-      <p class="hint">Modifiers: ctrl, shift, alt, super/cmd. Keys: A–Z, 0–9, F1–F12, space, enter, tab, esc… Note: global hotkeys may be limited under Wayland.</p>
+      <p id="hotkey-hint" class="hint">Click Record shortcut, then press desired combination. Use a modifier key or an F key. On GNOME Wayland, WhisperCat creates a GNOME custom shortcut automatically.</p>
       <label class="row" style="margin-top: 10px;">
         <input type="checkbox" bind:checked={cfg.auto_paste} style="width: auto;" />
         Automatically paste text after transcription (simulates Ctrl+V)
@@ -169,4 +221,9 @@
   .server input { width: auto; }
   .gain-controls { align-items: flex-start; }
   .gain-controls input { padding: 0; }
+  .hotkey-control { display: flex; gap: 8px; }
+  .hotkey-control input { min-width: 0; }
+  .hotkey-control button { flex: none; white-space: nowrap; }
+  .hotkey-control button.recording { border-color: var(--accent); color: var(--accent); }
+  @media (max-width: 480px) { .hotkey-control { flex-direction: column; } .hotkey-control button { align-self: flex-start; } }
 </style>

@@ -1,9 +1,9 @@
 use anyhow::{anyhow, Context, Result};
 use cpal::traits::{DeviceTrait, HostTrait, StreamTrait};
-use hound::{WavReader, WavSpec, WavWriter};
+use hound::{WavSpec, WavWriter};
 use std::fs::File;
 use std::io::{BufReader, BufWriter, Read};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
@@ -17,9 +17,8 @@ type SharedWriter = Arc<Mutex<Option<WavWriter<BufWriter<File>>>>>;
 pub struct Recorder {
     stream: cpal::Stream,
     writer: SharedWriter,
+    session_dir: PathBuf,
     mic_path: PathBuf,
-    output_path: PathBuf,
-    spec: WavSpec,
     system_capture: Option<SystemAudioCapture>,
     mic_gain: f32,
     system_audio_gain: f32,
@@ -42,17 +41,32 @@ enum SystemAudioCapture {
     },
 }
 
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 struct SystemAudioTrack {
     path: PathBuf,
-    spec: WavSpec,
     raw_pcm: bool,
+    sample_rate: u32,
+    channels: u16,
+}
+
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
+pub struct Recording {
+    session_dir: PathBuf,
+    mic_path: PathBuf,
+    system_track: Option<SystemAudioTrack>,
+    mic_gain: f32,
+    system_audio_gain: f32,
+}
+
+pub struct FinalizedRecording {
+    chunks: Vec<PathBuf>,
 }
 
 impl SystemAudioCapture {
-    fn start(source: Option<&str>, mic_spec: WavSpec, timestamp: u128) -> Result<Self> {
+    fn start(source: Option<&str>, mic_spec: WavSpec, session_dir: &std::path::Path) -> Result<Self> {
         #[cfg(target_os = "linux")]
         {
-            let raw_path = std::env::temp_dir().join(format!("whispercat_{timestamp}_system.raw"));
+            let raw_path = session_dir.join("system.raw");
             let mut command = Command::new("parec");
             command
                 .arg("--raw")
@@ -117,7 +131,7 @@ impl SystemAudioCapture {
                 bits_per_sample: 16,
                 sample_format: hound::SampleFormat::Int,
             };
-            let path = std::env::temp_dir().join(format!("whispercat_{timestamp}_system.wav"));
+            let path = session_dir.join("system.wav");
             let writer: SharedWriter = Arc::new(Mutex::new(Some(WavWriter::create(&path, spec)?)));
             let stream = build_stream(&device, &supported, writer.clone())?;
             stream.play()?;
@@ -131,7 +145,7 @@ impl SystemAudioCapture {
 
         #[cfg(not(any(target_os = "linux", target_os = "windows")))]
         {
-            let _ = (source, mic_spec, timestamp);
+            let _ = (source, mic_spec, session_dir);
             Err(anyhow!(
                 "System-audio recording is not supported on this platform"
             ))
@@ -154,8 +168,9 @@ impl SystemAudioCapture {
                     .map_err(|_| anyhow!("System-audio reader thread panicked"))??;
                 Ok(SystemAudioTrack {
                     path: raw_path,
-                    spec,
                     raw_pcm: true,
+                    sample_rate: spec.sample_rate,
+                    channels: spec.channels,
                 })
             }
             #[cfg(target_os = "windows")]
@@ -171,9 +186,49 @@ impl SystemAudioCapture {
                 }
                 Ok(SystemAudioTrack {
                     path,
-                    spec,
                     raw_pcm: false,
+                    sample_rate: spec.sample_rate,
+                    channels: spec.channels,
                 })
+            }
+        }
+    }
+
+    fn discard(self) -> Result<()> {
+        match self {
+            #[cfg(target_os = "linux")]
+            Self::Linux {
+                mut child,
+                reader,
+                raw_path,
+                ..
+            } => {
+                let _ = child.kill();
+                let _ = child.wait();
+                let result = reader
+                    .join()
+                    .map_err(|_| anyhow!("System-audio reader thread panicked"))
+                    .and_then(|result| result);
+                let _ = std::fs::remove_file(raw_path);
+                result
+            }
+            #[cfg(target_os = "windows")]
+            Self::Windows {
+                stream,
+                writer,
+                path,
+                ..
+            } => {
+                drop(stream);
+                let result = match writer.lock() {
+                    Ok(mut writer) => match writer.take() {
+                        Some(writer) => writer.finalize().map_err(Into::into),
+                        None => Ok(()),
+                    },
+                    Err(error) => Err(anyhow!("{error}")),
+                };
+                let _ = std::fs::remove_file(path);
+                result
             }
         }
     }
@@ -219,21 +274,45 @@ impl Recorder {
             sample_format: hound::SampleFormat::Int,
         };
         let timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis();
-        let mic_path = std::env::temp_dir().join(format!("whispercat_{timestamp}_mic.wav"));
-        let output_path = std::env::temp_dir().join(format!("whispercat_{timestamp}.wav"));
-        let writer: SharedWriter = Arc::new(Mutex::new(Some(WavWriter::create(&mic_path, spec)?)));
-        let stream = build_stream(&device, &supported, writer.clone())?;
-        stream.play()?;
+        let session_dir = recording_root().join(format!("{timestamp}_{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&session_dir)
+            .with_context(|| format!("Unable to create recording directory {}", session_dir.display()))?;
+        let mic_path = session_dir.join("mic.wav");
+        let writer = match WavWriter::create(&mic_path, spec) {
+            Ok(writer) => Arc::new(Mutex::new(Some(writer))),
+            Err(error) => {
+                let _ = std::fs::remove_dir_all(&session_dir);
+                return Err(error.into());
+            }
+        };
+        let stream = match build_stream(&device, &supported, writer.clone()) {
+            Ok(stream) => stream,
+            Err(error) => {
+                if let Some(writer) = writer.lock().map_err(|e| anyhow!("{e}"))?.take() {
+                    let _ = writer.finalize();
+                }
+                let _ = std::fs::remove_dir_all(&session_dir);
+                return Err(error);
+            }
+        };
+        if let Err(error) = stream.play() {
+            drop(stream);
+            if let Some(writer) = writer.lock().map_err(|e| anyhow!("{e}"))?.take() {
+                let _ = writer.finalize();
+            }
+            let _ = std::fs::remove_dir_all(&session_dir);
+            return Err(error.into());
+        }
 
         let system_capture = if system_audio_enabled {
-            match SystemAudioCapture::start(system_audio_source, spec, timestamp) {
+            match SystemAudioCapture::start(system_audio_source, spec, &session_dir) {
                 Ok(capture) => Some(capture),
                 Err(error) => {
                     drop(stream);
                     if let Some(writer) = writer.lock().map_err(|e| anyhow!("{e}"))?.take() {
                         writer.finalize()?;
                     }
-                    let _ = std::fs::remove_file(&mic_path);
+                    let _ = std::fs::remove_dir_all(&session_dir);
                     return Err(error);
                 }
             }
@@ -244,22 +323,20 @@ impl Recorder {
         Ok(Self {
             stream,
             writer,
+            session_dir,
             mic_path,
-            output_path,
-            spec,
             system_capture,
             mic_gain: mic_gain.clamp(0.0, 2.0),
             system_audio_gain: system_audio_gain.clamp(0.0, 2.0),
         })
     }
 
-    fn stop(self) -> Result<PathBuf> {
+    fn stop(self) -> Result<Recording> {
         let Recorder {
             stream,
             writer,
+            session_dir,
             mic_path,
-            output_path,
-            spec,
             system_capture,
             mic_gain,
             system_audio_gain,
@@ -269,116 +346,147 @@ impl Recorder {
             writer.finalize()?;
         }
 
-        let result = match system_capture {
-            Some(capture) => {
-                let system_track = capture.stop()?;
-                let mixed = mix_audio(
-                    &mic_path,
-                    &system_track,
-                    &output_path,
-                    spec,
-                    mic_gain,
-                    system_audio_gain,
-                );
-                let _ = std::fs::remove_file(system_track.path);
-                mixed
-            }
-            None => std::fs::rename(&mic_path, &output_path).map_err(Into::into),
+        let system_track = system_capture.map(SystemAudioCapture::stop).transpose()?;
+        Ok(Recording {
+            session_dir,
+            mic_path,
+            system_track,
+            mic_gain,
+            system_audio_gain,
+        })
+    }
+
+    fn discard(self) -> Result<()> {
+        let Recorder {
+            stream,
+            writer,
+            session_dir,
+            mic_path: _,
+            system_capture,
+            ..
+        } = self;
+        drop(stream);
+
+        let mut error = match writer.lock() {
+            Ok(mut writer) => writer
+                .take()
+                .and_then(|writer| writer.finalize().err().map(Into::into)),
+            Err(error) => Some(anyhow!("{error}")),
         };
-        let _ = std::fs::remove_file(&mic_path);
-        result?;
-
-        tracing::info!("Recording saved: {}", output_path.display());
-        Ok(output_path)
-    }
-}
-
-fn mix_audio(
-    mic_path: &Path,
-    system_track: &SystemAudioTrack,
-    output_path: &Path,
-    spec: WavSpec,
-    mic_gain: f32,
-    system_gain: f32,
-) -> Result<()> {
-    let mic_samples = read_wav_samples(mic_path)?;
-    let system_samples = if system_track.raw_pcm {
-        read_raw_samples(&system_track.path)?
-    } else {
-        read_wav_samples(&system_track.path)?
-    };
-    let system_samples = resample_and_remix(system_samples, system_track.spec, spec);
-    let mut writer = WavWriter::create(output_path, spec)?;
-    let total_samples = mic_samples.len().max(system_samples.len());
-
-    for index in 0..total_samples {
-        let mic = mic_samples.get(index).copied().unwrap_or(0);
-        let system = system_samples.get(index).copied().unwrap_or(0);
-        writer.write_sample(mix_sample(mic, system, mic_gain, system_gain))?;
-    }
-
-    writer.finalize()?;
-    Ok(())
-}
-
-fn read_wav_samples(path: &Path) -> Result<Vec<i16>> {
-    let mut reader = WavReader::open(path)?;
-    reader
-        .samples::<i16>()
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(Into::into)
-}
-
-fn read_raw_samples(path: &Path) -> Result<Vec<i16>> {
-    let bytes = std::fs::read(path)?;
-    Ok(bytes
-        .chunks_exact(2)
-        .map(|chunk| i16::from_le_bytes([chunk[0], chunk[1]]))
-        .collect())
-}
-
-fn resample_and_remix(samples: Vec<i16>, input: WavSpec, output: WavSpec) -> Vec<i16> {
-    if input.channels == 0
-        || output.channels == 0
-        || input.sample_rate == 0
-        || output.sample_rate == 0
-    {
-        return Vec::new();
-    }
-
-    let input_channels = usize::from(input.channels);
-    let output_channels = usize::from(output.channels);
-    let input_frames = samples.len() / input_channels;
-    if input_frames == 0 {
-        return Vec::new();
-    }
-    let output_frames = (input_frames as u64 * u64::from(output.sample_rate)
-        / u64::from(input.sample_rate)) as usize;
-    let mut converted = Vec::with_capacity(output_frames * output_channels);
-
-    for output_frame in 0..output_frames {
-        let input_frame = ((output_frame as u64 * u64::from(input.sample_rate))
-            / u64::from(output.sample_rate)) as usize;
-        let input_frame = input_frame.min(input_frames - 1);
-        let source = &samples[input_frame * input_channels..(input_frame + 1) * input_channels];
-        let mono =
-            source.iter().map(|sample| i32::from(*sample)).sum::<i32>() / input_channels as i32;
-        for channel in 0..output_channels {
-            let sample = if input_channels == output_channels {
-                source[channel]
-            } else {
-                mono as i16
-            };
-            converted.push(sample);
+        if let Some(capture) = system_capture {
+            if let Err(capture_error) = capture.discard() {
+                error.get_or_insert(capture_error);
+            }
         }
-    }
+        if let Err(remove_error) = std::fs::remove_dir_all(&session_dir) {
+            if remove_error.kind() != std::io::ErrorKind::NotFound {
+                error.get_or_insert(remove_error.into());
+            }
+        }
 
-    converted
+        if let Some(error) = error {
+            return Err(error);
+        }
+        tracing::info!("Recording discarded");
+        Ok(())
+    }
 }
 
-fn mix_sample(mic: i16, system: i16, mic_gain: f32, system_gain: f32) -> i16 {
-    let mixed = mic as f32 * mic_gain + system as f32 * system_gain;
-    mixed.clamp(i16::MIN as f32, i16::MAX as f32) as i16
+const OUTPUT_SAMPLE_RATE: u32 = 16_000;
+const OUTPUT_BITRATE: &str = "64k";
+const CHUNK_SECONDS: u32 = 600;
+
+/// Mixes recorded tracks and emits compact, API-safe MP3 chunks without loading
+/// complete recordings into memory. ffmpeg also handles format differences between tracks.
+pub fn finalize(recording: Recording) -> Result<FinalizedRecording> {
+    let chunk_dir = recording.session_dir.join("chunks");
+    let result = (|| {
+        std::fs::create_dir_all(&chunk_dir)
+            .with_context(|| format!("Unable to create {}", chunk_dir.display()))?;
+        let chunk_pattern = chunk_dir.join("chunk_%03d.mp3");
+        let mut command = Command::new("ffmpeg");
+        command
+            .arg("-hide_banner")
+            .arg("-loglevel")
+            .arg("error")
+            .arg("-y");
+        command.arg("-i").arg(&recording.mic_path);
+
+        if let Some(system) = &recording.system_track {
+            if system.raw_pcm {
+                command
+                    .args(["-f", "s16le", "-ar"])
+                    .arg(system.sample_rate.to_string())
+                    .args(["-ac"])
+                    .arg(system.channels.to_string());
+            }
+            command.arg("-i").arg(&system.path);
+            command.arg("-filter_complex").arg(format!(
+                "[0:a]volume={}[mic];[1:a]volume={}[system];[mic][system]amix=inputs=2:duration=longest:normalize=0",
+                recording.mic_gain.clamp(0.0, 2.0),
+                recording.system_audio_gain.clamp(0.0, 2.0),
+            ));
+        } else {
+            command
+                .arg("-filter:a")
+                .arg(format!("volume={}", recording.mic_gain.clamp(0.0, 2.0)));
+        }
+
+        let output = command
+            .arg("-ar")
+            .arg(OUTPUT_SAMPLE_RATE.to_string())
+            .arg("-ac")
+            .arg("1")
+            .arg("-c:a")
+            .arg("libmp3lame")
+            .arg("-b:a")
+            .arg(OUTPUT_BITRATE)
+            .arg("-f")
+            .arg("segment")
+            .arg("-segment_time")
+            .arg(CHUNK_SECONDS.to_string())
+            .arg("-reset_timestamps")
+            .arg("1")
+            .arg(&chunk_pattern)
+            .output()
+            .context("Unable to start ffmpeg. Install ffmpeg to finalize recordings.")?;
+        if !output.status.success() {
+            return Err(anyhow!(
+                "ffmpeg audio finalization failed: {}",
+                String::from_utf8_lossy(&output.stderr).trim()
+            ));
+        }
+
+        let mut chunks: Vec<_> = std::fs::read_dir(&chunk_dir)?
+            .filter_map(|entry| entry.ok().map(|entry| entry.path()))
+            .filter(|path| path.extension().is_some_and(|extension| extension == "mp3"))
+            .collect();
+        chunks.sort();
+        if chunks.is_empty() {
+            return Err(anyhow!("ffmpeg produced no audio chunks"));
+        }
+        Ok(FinalizedRecording {
+            chunks,
+        })
+    })();
+
+    result
+}
+
+impl Recording {
+    pub fn session_dir(&self) -> &std::path::Path {
+        &self.session_dir
+    }
+}
+
+impl FinalizedRecording {
+    pub fn chunks(&self) -> &[PathBuf] {
+        &self.chunks
+    }
+}
+
+pub fn recording_root() -> PathBuf {
+    std::env::temp_dir().join("whispercat")
 }
 
 fn build_stream(
@@ -537,7 +645,10 @@ enum RecCommand {
         reply: mpsc::Sender<Result<(), String>>,
     },
     Stop {
-        reply: mpsc::Sender<Result<PathBuf, String>>,
+        reply: mpsc::Sender<Result<Recording, String>>,
+    },
+    Discard {
+        reply: mpsc::Sender<Result<(), String>>,
     },
 }
 
@@ -551,6 +662,7 @@ fn send_and_wait<T>(
     reply_rx.recv().map_err(|error| error.to_string())?
 }
 
+#[derive(Clone)]
 pub struct RecorderHandle {
     tx: mpsc::Sender<RecCommand>,
 }
@@ -596,6 +708,13 @@ impl RecorderHandle {
                         };
                         let _ = reply.send(result);
                     }
+                    RecCommand::Discard { reply } => {
+                        let result = match current.take() {
+                            Some(recorder) => recorder.discard().map_err(|error| error.to_string()),
+                            None => Err("No recording is active.".to_string()),
+                        };
+                        let _ = reply.send(result);
+                    }
                 }
             }
         });
@@ -620,7 +739,11 @@ impl RecorderHandle {
         })
     }
 
-    pub fn stop(&self) -> Result<PathBuf, String> {
+    pub fn stop(&self) -> Result<Recording, String> {
         send_and_wait(&self.tx, |reply| RecCommand::Stop { reply })
+    }
+
+    pub fn discard(&self) -> Result<(), String> {
+        send_and_wait(&self.tx, |reply| RecCommand::Discard { reply })
     }
 }
