@@ -3,16 +3,20 @@ mod config;
 mod hotkeys;
 mod postprocess;
 mod recorder;
+mod runs;
+mod screenshot;
 mod transcribe;
 mod tray;
 
 use config::Config;
 use postprocess::PostProcessing;
+use runs::{Run, RunStore};
 use tauri::{Emitter, Manager, State};
 
 pub struct AppState {
     cfg: std::sync::Mutex<Config>,
     rec: recorder::RecorderHandle,
+    runs: RunStore,
 }
 
 impl AppState {
@@ -72,9 +76,119 @@ async fn postprocess_text(
 }
 
 #[tauri::command]
-async fn paste_text(state: State<'_, AppState>, text: String) -> Result<(), String> {
-    let auto_paste = state.config().auto_paste;
-    clipboard::copy_and_maybe_paste(&text, auto_paste).await
+async fn copy_text(text: String) -> Result<(), String> {
+    clipboard::copy_and_maybe_paste(&text, false).await
+}
+
+#[tauri::command]
+async fn queue_run(
+    state: State<'_, AppState>,
+    path: String,
+    workflow: Option<PostProcessing>,
+) -> Result<Run, String> {
+    let screenshot_session = match workflow.as_ref() {
+        Some(workflow) => postprocess::prepare_screenshot_session(workflow)
+            .await
+            .map_err(|error| error.to_string())?,
+        None => None,
+    };
+    let run = state
+        .runs
+        .create(workflow.as_ref(), String::new())
+        .map_err(|error| error.to_string())?;
+    let cfg = state.config();
+    let runs = state.runs.clone();
+    let run_id = run.id.clone();
+
+    tokio::spawn(async move {
+        let outcome = async {
+            let transcript = transcribe::transcribe(&cfg, &path).await?;
+            runs.set_transcript(&run_id, transcript.clone())?;
+            let result = match workflow {
+                Some(workflow) => {
+                    postprocess::apply_with_screenshot_session(
+                        &cfg,
+                        &workflow,
+                        &transcript,
+                        screenshot_session.as_ref(),
+                    )
+                    .await?
+                }
+                None => transcript,
+            };
+            runs.complete(&run_id, result)?;
+            Ok::<(), anyhow::Error>(())
+        }
+        .await;
+
+        if let Some(session) = screenshot_session {
+            session.close().await;
+        }
+
+        if let Err(error) = outcome {
+            if let Err(store_error) = runs.fail(&run_id, error.to_string()) {
+                tracing::warn!("Could not save failed history run: {store_error}");
+            }
+        }
+        if let Err(error) = tokio::fs::remove_file(&path).await {
+            if error.kind() != std::io::ErrorKind::NotFound {
+                tracing::warn!("Could not remove temporary recording {path}: {error}");
+            }
+        }
+    });
+
+    Ok(run)
+}
+
+#[tauri::command]
+async fn queue_text_run(
+    state: State<'_, AppState>,
+    text: String,
+    workflow: PostProcessing,
+) -> Result<Run, String> {
+    let screenshot_session = postprocess::prepare_screenshot_session(&workflow)
+        .await
+        .map_err(|error| error.to_string())?;
+    let run = state
+        .runs
+        .create(Some(&workflow), text.clone())
+        .map_err(|error| error.to_string())?;
+    let cfg = state.config();
+    let runs = state.runs.clone();
+    let run_id = run.id.clone();
+
+    tokio::spawn(async move {
+        let outcome = postprocess::apply_with_screenshot_session(
+            &cfg,
+            &workflow,
+            &text,
+            screenshot_session.as_ref(),
+        )
+        .await
+        .and_then(|result| runs.complete(&run_id, result));
+
+        if let Some(session) = screenshot_session {
+            session.close().await;
+        }
+
+        if let Err(error) = outcome {
+            if let Err(store_error) = runs.fail(&run_id, error.to_string()) {
+                tracing::warn!("Could not save failed history run: {store_error}");
+            }
+        }
+    });
+
+    Ok(run)
+}
+
+#[tauri::command]
+fn list_runs(state: State<AppState>) -> Vec<Run> {
+    state.runs.list()
+}
+
+#[tauri::command]
+fn clear_runs(state: State<AppState>) -> Result<(), String> {
+    state.runs.clear().map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -170,6 +284,7 @@ pub fn run() {
         .manage(AppState {
             cfg: std::sync::Mutex::new(cfg),
             rec: recorder::RecorderHandle::new(),
+            runs: RunStore::load(),
         })
         .setup(|app| {
             // Hauptfenster programmatisch anlegen (Config-Fenster werden erst nach setup() erstellt,
@@ -209,7 +324,11 @@ pub fn run() {
             stop_recording,
             transcribe_audio,
             postprocess_text,
-            paste_text,
+            copy_text,
+            queue_run,
+            queue_text_run,
+            list_runs,
+            clear_runs,
             list_input_devices,
             list_system_audio_sources,
             detect_default_input_device,

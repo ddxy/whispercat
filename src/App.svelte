@@ -2,9 +2,10 @@
   import Record from './views/Record.svelte';
   import Settings from './views/Settings.svelte';
   import PostProcessings from './views/PostProcessings.svelte';
+  import History from './views/History.svelte';
   import Toast from './Toast.svelte';
 
-  let tab: 'record' | 'pp' | 'settings' = 'record';
+  let tab: 'record' | 'history' | 'pp' | 'settings' = 'record';
 </script>
 
 <div class="shell">
@@ -18,6 +19,10 @@
       <button class:active={tab === 'record'} aria-current={tab === 'record' ? 'page' : undefined} on:click={() => (tab = 'record')}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5v4M8.5 21.5h7"/></svg>
         <span>Record</span>
+      </button>
+      <button class:active={tab === 'history'} aria-current={tab === 'history' ? 'page' : undefined} on:click={() => (tab = 'history')}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 7v5l3.5 2M20 12a8 8 0 1 1-2.34-5.66L20 8.67M20 4v4.67h-4.67"/></svg>
+        <span>History</span>
       </button>
       <button class:active={tab === 'pp'} aria-current={tab === 'pp' ? 'page' : undefined} on:click={() => (tab = 'pp')}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5.5h16M4 12h16M4 18.5h10"/><circle cx="17" cy="18.5" r="3"/></svg>
@@ -35,6 +40,8 @@
   <main>
     {#if tab === 'record'}
       <Record />
+    {:else if tab === 'history'}
+      <History onRecordAgain={() => (tab = 'record')} />
     {:else if tab === 'pp'}
       <PostProcessings />
     {:else}

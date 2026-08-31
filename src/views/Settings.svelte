@@ -141,6 +141,20 @@
       <p class="hint">The OpenAI or Open WebUI key is also used for post-processing prompts.</p>
     </div>
 
+    <div class="card">
+      <h2>n8n</h2>
+      <label>Instance URL <input bind:value={cfg.n8n_url} placeholder="https://n8n.example.com" /></label>
+      <label>Bearer token (optional) <input type="password" bind:value={cfg.n8n_token} /></label>
+      <p class="hint">n8n workflow steps add their webhook path to this URL and receive the current text as JSON.</p>
+    </div>
+
+    <div class="card">
+      <h2>Custom AI Provider</h2>
+      <label>Chat completions URL <input bind:value={cfg.custom_ai_url} placeholder="https://provider.example/v1/chat/completions" /></label>
+      <label>API key (optional) <input type="password" bind:value={cfg.custom_ai_key} /></label>
+      <p class="hint">Must accept and return the OpenAI chat-completions format. Select Custom AI in a prompt workflow step to use it.</p>
+    </div>
+
   </div>
 {/if}
 

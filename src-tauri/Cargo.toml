@@ -28,3 +28,7 @@ hound = "3.5"
 reqwest = { version = "0.12", default-features = false, features = ["json", "multipart", "rustls-tls"] }
 arboard = "3"
 enigo = "0.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ashpd = "0.12"
+libc = "0.2"

@@ -3,7 +3,7 @@
 // mocks are provided so UI development works without native dependencies.
 
 import { invoke } from '@tauri-apps/api/core';
-import type { Config, PostProcessing } from './types.ts';
+import type { Config, PostProcessing, Run } from './types.ts';
 
 const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
 
@@ -18,6 +18,10 @@ let mockConfig: Config = {
   faster_language: '',
   owui_url: '',
   owui_key: '',
+  custom_ai_url: '',
+  custom_ai_key: '',
+  n8n_url: '',
+  n8n_token: '',
   mic_name: null,
   system_audio_enabled: false,
   system_audio_source: null,
@@ -44,6 +48,7 @@ let mockPps: PostProcessing[] = [
     ],
   },
 ];
+let mockRuns: Run[] = [];
 
 // ---------- Recording / transcription ----------
 
@@ -67,7 +72,63 @@ export async function postprocess(pp: PostProcessing, text: string): Promise<str
   return invoke('postprocess_text', { pp, text });
 }
 
-export async function pasteText(text: string): Promise<void> {
+export async function queueRun(path: string, workflow: PostProcessing | null): Promise<Run> {
+  if (!isTauri) {
+    const run: Run = {
+      id: crypto.randomUUID(),
+      created_at: Date.now(),
+      status: 'processing',
+      workflow_uuid: workflow?.uuid ?? null,
+      workflow_title: workflow?.title ?? 'No workflow',
+      transcript: '',
+      result: '',
+    };
+    mockRuns = [run, ...mockRuns];
+    void sleep(700).then(() => {
+      const transcript = `Mock transcript from ${path}. Run "npm run tauri dev" for real transcription.`;
+      const result = workflow ? `[Mock workflow "${workflow.title}"] ${transcript}` : transcript;
+      mockRuns = mockRuns.map((entry) => entry.id === run.id ? { ...entry, status: 'done', transcript, result } : entry);
+    });
+    return run;
+  }
+  return invoke('queue_run', { path, workflow });
+}
+
+export async function queueTextRun(text: string, workflow: PostProcessing): Promise<Run> {
+  if (!isTauri) {
+    const run: Run = {
+      id: crypto.randomUUID(),
+      created_at: Date.now(),
+      status: 'processing',
+      workflow_uuid: workflow.uuid,
+      workflow_title: workflow.title,
+      transcript: text,
+      result: '',
+    };
+    mockRuns = [run, ...mockRuns];
+    void sleep(500).then(() => {
+      const result = `[Mock workflow "${workflow.title}"] ${text}`;
+      mockRuns = mockRuns.map((entry) => entry.id === run.id ? { ...entry, status: 'done', result } : entry);
+    });
+    return run;
+  }
+  return invoke('queue_text_run', { text, workflow });
+}
+
+export async function listRuns(): Promise<Run[]> {
+  if (!isTauri) return structuredClone(mockRuns);
+  return invoke('list_runs');
+}
+
+export async function clearRuns(): Promise<void> {
+  if (!isTauri) {
+    mockRuns = [];
+    return;
+  }
+  return invoke('clear_runs');
+}
+
+export async function copyText(text: string): Promise<void> {
   if (!isTauri) {
     try {
       await navigator.clipboard.writeText(text);
@@ -76,7 +137,7 @@ export async function pasteText(text: string): Promise<void> {
     }
     return;
   }
-  return invoke('paste_text', { text });
+  return invoke('copy_text', { text });
 }
 
 // ---------- Devices ----------
